@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"target": "es5",
+		"module": "commonjs",
+		"sourceMap": true,
+		"outDir": "build"
+	} ,
+	"files": [
+		"src/Interfaces.ts",
+		"src/MidiIO.ts",
+		"src/BarGrid.ts",
+		"src/App.ts",
+        "test/spec/CxSheetSpec.ts"
+    ]
+}

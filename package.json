@@ -1,0 +1,41 @@
+{
+  "name": "cxsheet",
+  "version": "1.0.0",
+  "description": "Midi to Chord sheet",
+  "main": "index.js",
+  "dependencies": {
+    "@types/lodash": "^4.14.50",
+    "lodash": "^4.17.4",
+    "midi-file": "^1.0.2"
+  },
+  "devDependencies": {
+    "@types/jasmine": "^2.5.40",
+    "@types/node": "^7.0.0",
+    "jasmine-node": "^1.14.5",
+    "jasmine-standalone": "^1.3.1"
+  },
+  "scripts": {
+    "test": "jasmine-node ./test/spec/test_spec.js",
+    "build:tsc": "tsc -p ./",
+    "uglify:dist": "uglifyjs build/src/MidiReader.js build/src/BarGrid.js build/src/App.js build/src/Interfaces.js build/src/references.js -b > build/src/index.js",
+    "uglify:test": "uglifyjs  build/src/references.js build/src/Interfaces.js build/src/MidiReader.js build/src/BarGrid.js build/src/App.js build/test/spec/CxSheetSpec.js -b > ./test/spec/test_spec.js",
+    "build": "npm run clean && npm run build:tsc && npm run uglify:dist && npm run uglify:test",
+    "clean": "trash './build/src/*' && trash './build/test/spec/*'",
+    "watcher": "watch \"npm run build\" ./src"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BernhardPaw/CxSheet.git"
+  },
+  "keywords": [
+    "Midi",
+    "Sheet",
+    "Chords"
+  ],
+  "author": "Claus Fjellø-Jensen",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BernhardPaw/CxSheet/issues"
+  },
+  "homepage": "https://github.com/BernhardPaw/CxSheet#readme"
+}
