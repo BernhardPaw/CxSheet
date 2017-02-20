@@ -1,6 +1,19 @@
 //
 // App Interface 
 //
+interface config {
+     
+
+}
+
+interface AnalyzeChord {
+ 
+
+}
+
+interface Analyze {
+        
+}
 
 //
 // Midi Interfaces
@@ -11,7 +24,8 @@ interface BaseEntry {
       realTime?:      number,
       track?:         number,
       sortKey?:       number,
-      signature?:     string
+      signature?:     string,
+      sigIdx?:        number
 } 
 
 interface MetaEntry extends BaseEntry {
@@ -23,13 +37,14 @@ interface MetaText extends MetaEntry {
 }
 
 interface TimeSignature extends MetaEntry {
-        numerator: number,
-        denominator: number,
-        metronome: number,
-        thirtyseconds: number
+        numerator:      number,
+        denominator:    number,
+        metronome:      number,
+        thirtyseconds:  number,
+        granularity?:   number  // smallest subdivision of the beat
 }
 
-interface SetTempo extends MetaEntry {        
+interface Tempo extends MetaEntry {        
         microsecondsPerBeat: number
 }
 
@@ -64,21 +79,16 @@ interface PitchBend extends BaseEntry {
 }
 
 interface ChannelNote extends BaseEntry {
-        channel:   number,
-        type:      string,
+        channel:    number,
+        type:       string,
         noteNumber: number,
-        velocity:   number
+        velocity:   number,
+        duration?:  number
 }
 
-/*
-interface Event {
-        event: MetaEntry | MetaText | TimeSignature | SetTempo | KeySignature | PortPrefix | ChannelPrefix | Controller | ProgramChange | PitchBend | ChannelNote
-}
-
-interface Track {
-        track: Array< MetaEntry | MetaText | TimeSignature | SetTempo | KeySignature | PortPrefix | ChannelPrefix | Controller | ProgramChange | PitchBend | ChannelNote  >
-}
-*/ 
+type MidiEvent  = BaseEntry|MetaEntry|MetaText|TimeSignature|Tempo|KeySignature|PortPrefix|ChannelPrefix|Controller|ProgramChange|PitchBend|ChannelNote
+type Track    = Array<MidiEvent>
+type TrackArr = Array<Track>
 
 interface Song {
         header: {
@@ -86,8 +96,18 @@ interface Song {
         numTracks:    number,
         ticksPerBeat: number,
         },
-        tracks: Array< Array< MetaEntry | MetaText | TimeSignature | SetTempo | KeySignature | PortPrefix | ChannelPrefix | Controller | ProgramChange | PitchBend | ChannelNote  > >
+        tracks: TrackArr
 }  
+
+type SongArr = Array<Song>
+
+interface Grid {
+        text:   string,
+        subDiv: number[],
+        grid:   Track            
+}
+
+type chordMatrix = Array< Array< Array<number> > >
 
 
 

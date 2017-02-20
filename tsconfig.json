@@ -7,8 +7,11 @@
 	} ,
 	"files": [
 		"src/Interfaces.ts",
+		"src/DataHub.ts",
 		"src/MidiIO.ts",
 		"src/BarGrid.ts",
+		"src/Analyzer.ts",
+		"src/Normalizer.ts",
 		"src/App.ts",
         "test/spec/CxSheetSpec.ts"
     ]

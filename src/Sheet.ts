@@ -2,9 +2,11 @@
 namespace CxSheet {
 
     class Sheet {
-        constructor () {
+        constructor ( public hub : CxSheet.DataHub ) {
             
         }
+
+        getDataHub(): DataHub { return this.hub }
     }
 
 }

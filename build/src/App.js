@@ -5,9 +5,10 @@ var CxSheet;
 (function (CxSheet) {
     var App = (function () {
         function App(fileName) {
+            this.dataHub = [];
             this.midiIO = [];
             this.barGrid = [];
-            this.fileCount = 0;
+            this.idx = 0;
             if (!_.isEmpty(fileName)) {
                 this.readMidiFile(fileName);
             }
@@ -15,12 +16,12 @@ var CxSheet;
         App.prototype.readMidiFile = function (fileName) {
             var midi = new CxSheet.MidiIO(fileName);
             this.midiIO.push(midi);
-            this.barGrid.push(new CxSheet.BarGrid(midi));
-            this.fileCount = this.midiIO.length;
+            this.barGrid.push(new CxSheet.BarGrid(midi.getDataHub()));
+            this.idx = this.midiIO.length;
         };
         return App;
     }());
     CxSheet.App = App;
 })(CxSheet || (CxSheet = {}));
-var myApp = new CxSheet.App("../../resource/sultans-of-swing.mid");
+var myApp = new CxSheet.App("resource/sultans-of-swing.mid");
 //# sourceMappingURL=App.js.map
