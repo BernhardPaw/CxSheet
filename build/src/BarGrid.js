@@ -14,7 +14,6 @@ var CxSheet;
             if (beatCounter === void 0) { beatCounter = 0; }
             this.hub = hub;
             this.beatCounter = beatCounter;
-            // beatsTrack:      (MetaEntry| MetaText)[] = []
             this.beatsSortKey = 0;
             this.prevBeatRealTime = 0;
             this.timeIdx = 0;
@@ -33,14 +32,14 @@ var CxSheet;
         Beats.getBar = function (signature) {
             return Number(signature.split('.')[0]);
         };
-        /*
-        static getBeatIdx(event: ChannelNote ): number {
-            var bar = this.getBar(event.signature)
-            return Number(event.signature.split('.')[1])
-        }
-        */
         Beats.setTicks = function (signature, ticks) {
             return signature.substr(0, 8) + ("00" + ticks).slice(-3);
+        };
+        Beats.setSignature = function (barCount, beatCount, _ticks) {
+            var bar = ("0000" + barCount).slice(-4);
+            var beat = ("00" + beatCount).slice(-2);
+            var ticks = ("00" + _ticks).slice(-3);
+            return bar + "." + beat + "." + ticks;
         };
         Beats.prototype.checkResolution = function (realTime) {
             var timeSignatures = this.hub.timeSignatures;
@@ -81,8 +80,6 @@ var CxSheet;
             }
             event.sortKey = this.beatsSortKey++;
             event.signature = this.getSignature(event.realTime);
-            // this.hub.grid.push( event )
-            // return event
         };
         Beats.prototype.addBeatMarker = function (pIdx) {
             if (pIdx === void 0) { pIdx = 0; }
@@ -111,10 +108,12 @@ var CxSheet;
             _this.maxRealtime = 0;
             _this.minDuration = 100000;
             _this.realTimePointer = 0;
+            _this.extendedParsing();
             _this.buildGrid();
+            _this.groupPrograms();
             return _this;
         }
-        BarGrid.prototype.getDuration = function (t, e, pIdx) {
+        BarGrid.prototype.setDuration = function (t, e, pIdx) {
             if (pIdx === void 0) { pIdx = 0; }
             var track = this.hub.parsed[pIdx].tracks[t];
             var p = e - 1;
@@ -141,8 +140,10 @@ var CxSheet;
             for (var t = 0; t < song.tracks.length; t++) {
                 if (song.tracks[t].length > 0) {
                     // Loop through track
+                    var prevRealTimeEnd = 0;
                     for (var e = 0; e < song.tracks[t].length; e++) {
                         song.tracks[t][e].track = t;
+                        // song.tracks[t][e].realTime = e == 0 ? song.tracks[t][e].deltaTime : song.tracks[t][e].deltaTime + song.tracks[t][e - 1].realTime
                         song.tracks[t][e].realTime = e == 0 ? song.tracks[t][e].deltaTime : song.tracks[t][e].deltaTime + song.tracks[t][e - 1].realTime;
                         song.tracks[t][e].sortKey = e;
                         if (song.tracks[t][e].type == "timeSignature") {
@@ -153,10 +154,10 @@ var CxSheet;
                         if (song.tracks[t][e].type == "noteOff" || song.tracks[t][e].type == "noteOn") {
                             song.tracks[t][e].duration = 0;
                             if (song.tracks[t][e].type == "noteOff") {
-                                this.getDuration(t, e);
+                                this.setDuration(t, e);
                             }
                             else if (song.tracks[t][e].type == "noteOn" && song.tracks[t][e].velocity == 0) {
-                                this.getDuration(t, e);
+                                this.setDuration(t, e);
                             }
                         }
                         this.maxRealtime = song.tracks[t][e].realTime > this.maxRealtime ? song.tracks[t][e].realTime : this.maxRealtime;
@@ -166,13 +167,34 @@ var CxSheet;
             // Build the Time Signature map and iterate
             this.hub.timeSignatures = _.sortBy(this.hub.timeSignatures, 'realtime');
         };
+        BarGrid.prototype.groupPrograms = function (pIdx) {
+            if (pIdx === void 0) { pIdx = 0; }
+            // var programChanges = _.sortBy( _.filter(this.hub.grids[0], { "type": "programChange" } ), ['realTime', 'track', 'sortKey'] )
+            var programChanges = this.hub.getEventsByType("programChange");
+            for (var e = 0; e < programChanges.length; e++) {
+                var p = programChanges[e].programNumber;
+                if ((p > 0 && p < 33) || (p > 40 && p < 113)) {
+                    programChanges[e].programType = ProgramType.chords;
+                }
+                else if ((p > 32 && p < 41)) {
+                    programChanges[e].programType = ProgramType.bass;
+                }
+                else {
+                    programChanges[e].programType = ProgramType.drums;
+                }
+            }
+            this.hub.programChanges = programChanges;
+            this.hub.chordTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.chords }), ['realTime', 'track', 'sortKey']));
+            this.hub.bassTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.bass }), ['realTime', 'track', 'sortKey']));
+            this.hub.drumTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.drums }), ['realTime', 'track', 'sortKey']));
+        };
         BarGrid.prototype.buildGrid = function (pIdx) {
             if (pIdx === void 0) { pIdx = 0; }
             var song = this.hub.parsed[pIdx];
             if (_.isEmpty(this.hub.timeSignatures)) {
                 this.extendedParsing();
             }
-            // var beats = new Beats(this.self)
+            // Get all track events        
             var trackEvents = _.sortBy(_.flatten(song.tracks), ['realTime', 'track', 'sortKey']);
             for (var e = 0; e < trackEvents.length; e++) {
                 this.addSignature(trackEvents[e]);
@@ -183,7 +205,7 @@ var CxSheet;
                 this.addBeatMarker();
             }
             this.hub.grids[pIdx] = trackEvents;
-            CxSheet.writeJsonArr(this.hub.grids[pIdx], "C:\\work\\CxSheet\\resource\\trackEvents.json");
+            // writeJsonArr(this.hub.grids[pIdx], "C:\\work\\CxSheet\\resource\\trackEvents.json")
         };
         return BarGrid;
     }(Beats));

@@ -9,14 +9,34 @@ var ProgramType;
 var CxSheet;
 
 (function(CxSheet) {
+    var Config = function() {
+        function Config() {
+            if (Config._instance) {
+                throw new Error("Error: Instantiation failed: Use Config.getInstance() instead of new.");
+            }
+            Config._instance = this;
+        }
+        Config.getInstance = function() {
+            return Config._instance;
+        };
+        return Config;
+    }();
+    Config.sampleBeatDivision = 2;
+    Config.overlapLookBack = 10;
+    Config._instance = new Config();
+    CxSheet.Config = Config;
     var DataHub = function() {
         function DataHub() {
             this.parsed = [];
             this.grids = [];
             this.timeSignatures = [];
             this.bars = [];
+            this.subDivCount = [];
         }
         DataHub.prototype.getChordTracks = function(includeBass) {
+            if (includeBass === void 0) {
+                includeBass = true;
+            }
             var data = this.chordTracksCh;
             var tracks = [];
             if (includeBass) {
@@ -35,13 +55,33 @@ var CxSheet;
             }
             return _.uniq(tracks).sort();
         };
-        DataHub.prototype.getTrackEvents = function(tracks, pIdx) {
+        DataHub.prototype.getTrackNotes = function(trackList, pIdx) {
             if (pIdx === void 0) {
                 pIdx = 0;
             }
-            var events = _.sortBy(_.filter(this.grids[pIdx], function(e) {
-                return tracks.indexOf(e.track) > -1 && e.type == "noteOn";
-            }), [ "realTime", "track", "sortKey" ]);
+            var trackEvents = [];
+            for (var t = 0; t < trackList.length; t++) {
+                trackEvents = _.concat(trackEvents, this.parsed[pIdx].tracks[trackList[t]]);
+            }
+            var events = _.sortBy(_.filter(trackEvents, function(e) {
+                return e.type == "noteOn" && e.velocity > 0;
+            }), [ "sortKey", "realTime", "track" ]);
+            return events;
+        };
+        DataHub.prototype.getEventsByType = function(_type, pIdx) {
+            if (pIdx === void 0) {
+                pIdx = 0;
+            }
+            var events = _.sortBy(_.filter(_.flatten(this.parsed[pIdx].tracks), function(e) {
+                return e.type == _type;
+            }), [ "sortKey", "realTime", "track" ]);
+            return events;
+        };
+        DataHub.prototype.getAllEvents = function(pIdx) {
+            if (pIdx === void 0) {
+                pIdx = 0;
+            }
+            var events = _.sortBy(_.flatten(this.parsed[pIdx].tracks), [ "sortKey", "realTime", "track" ]);
             return events;
         };
         return DataHub;
@@ -88,6 +128,17 @@ var CxSheet;
         nodeFs.writeFileSync(jsonOutPath, outputBuffer);
     }
     CxSheet.writeJsonArr = writeJsonArr;
+    function writeJson(map, _jsonOutPath) {
+        if (_jsonOutPath === void 0) {
+            _jsonOutPath = "";
+        }
+        var jsonOutPath = _jsonOutPath.match(/^$/) ? getOutFilePath(_jsonOutPath) : normalizePath(_jsonOutPath);
+        var outputBuffer = new Buffer(stringify(map, {
+            space: "  "
+        }));
+        nodeFs.writeFileSync(jsonOutPath, outputBuffer);
+    }
+    CxSheet.writeJson = writeJson;
     var MidiIO = function() {
         function MidiIO(_midiInPath, _midiOutName, hub) {
             if (_midiOutName === void 0) {
@@ -185,6 +236,12 @@ var CxSheet;
         Beats.setTicks = function(signature, ticks) {
             return signature.substr(0, 8) + ("00" + ticks).slice(-3);
         };
+        Beats.setSignature = function(barCount, beatCount, _ticks) {
+            var bar = ("0000" + barCount).slice(-4);
+            var beat = ("00" + beatCount).slice(-2);
+            var ticks = ("00" + _ticks).slice(-3);
+            return bar + "." + beat + "." + ticks;
+        };
         Beats.prototype.checkResolution = function(realTime) {
             var timeSignatures = this.hub.timeSignatures;
             if (this.timeIdx + 1 < timeSignatures.length && timeSignatures[this.timeIdx + 1].realTime <= realTime) {
@@ -255,10 +312,12 @@ var CxSheet;
             _this.maxRealtime = 0;
             _this.minDuration = 1e5;
             _this.realTimePointer = 0;
+            _this.extendedParsing();
             _this.buildGrid();
+            _this.groupPrograms();
             return _this;
         }
-        BarGrid.prototype.getDuration = function(t, e, pIdx) {
+        BarGrid.prototype.setDuration = function(t, e, pIdx) {
             if (pIdx === void 0) {
                 pIdx = 0;
             }
@@ -285,6 +344,7 @@ var CxSheet;
             var song = this.hub.parsed[pIdx];
             for (var t = 0; t < song.tracks.length; t++) {
                 if (song.tracks[t].length > 0) {
+                    var prevRealTimeEnd = 0;
                     for (var e = 0; e < song.tracks[t].length; e++) {
                         song.tracks[t][e].track = t;
                         song.tracks[t][e].realTime = e == 0 ? song.tracks[t][e].deltaTime : song.tracks[t][e].deltaTime + song.tracks[t][e - 1].realTime;
@@ -297,9 +357,9 @@ var CxSheet;
                         if (song.tracks[t][e].type == "noteOff" || song.tracks[t][e].type == "noteOn") {
                             song.tracks[t][e].duration = 0;
                             if (song.tracks[t][e].type == "noteOff") {
-                                this.getDuration(t, e);
+                                this.setDuration(t, e);
                             } else if (song.tracks[t][e].type == "noteOn" && song.tracks[t][e].velocity == 0) {
-                                this.getDuration(t, e);
+                                this.setDuration(t, e);
                             }
                         }
                         this.maxRealtime = song.tracks[t][e].realTime > this.maxRealtime ? song.tracks[t][e].realTime : this.maxRealtime;
@@ -308,44 +368,11 @@ var CxSheet;
             }
             this.hub.timeSignatures = _.sortBy(this.hub.timeSignatures, "realtime");
         };
-        BarGrid.prototype.buildGrid = function(pIdx) {
+        BarGrid.prototype.groupPrograms = function(pIdx) {
             if (pIdx === void 0) {
                 pIdx = 0;
             }
-            var song = this.hub.parsed[pIdx];
-            if (_.isEmpty(this.hub.timeSignatures)) {
-                this.extendedParsing();
-            }
-            var trackEvents = _.sortBy(_.flatten(song.tracks), [ "realTime", "track", "sortKey" ]);
-            for (var e = 0; e < trackEvents.length; e++) {
-                this.addSignature(trackEvents[e]);
-            }
-            var lastEntry = trackEvents.length - 1;
-            if (lastEntry >= 0 && trackEvents[trackEvents.length - 1].type != "beat") {
-                this.addBeatMarker();
-            }
-            this.hub.grids[pIdx] = trackEvents;
-            CxSheet.writeJsonArr(this.hub.grids[pIdx], "C:\\work\\CxSheet\\resource\\trackEvents.json");
-        };
-        return BarGrid;
-    }(Beats);
-    CxSheet.BarGrid = BarGrid;
-})(CxSheet || (CxSheet = {}));
-
-var kmeans = require("node-kmeans");
-
-var CxSheet;
-
-(function(CxSheet) {
-    var Analyzer = function() {
-        function Analyzer(hub) {
-            this.hub = hub;
-            this.groupPrograms();
-        }
-        Analyzer.prototype.groupPrograms = function() {
-            var programChanges = _.sortBy(_.filter(this.hub.grids[0], {
-                type: "programChange"
-            }), [ "realTime", "track", "sortKey" ]);
+            var programChanges = this.hub.getEventsByType("programChange");
             for (var e = 0; e < programChanges.length; e++) {
                 var p = programChanges[e].programNumber;
                 if (p > 0 && p < 33 || p > 40 && p < 113) {
@@ -367,6 +394,70 @@ var CxSheet;
                 programType: ProgramType.drums
             }), [ "realTime", "track", "sortKey" ]));
         };
+        BarGrid.prototype.buildGrid = function(pIdx) {
+            if (pIdx === void 0) {
+                pIdx = 0;
+            }
+            var song = this.hub.parsed[pIdx];
+            if (_.isEmpty(this.hub.timeSignatures)) {
+                this.extendedParsing();
+            }
+            var trackEvents = _.sortBy(_.flatten(song.tracks), [ "realTime", "track", "sortKey" ]);
+            for (var e = 0; e < trackEvents.length; e++) {
+                this.addSignature(trackEvents[e]);
+            }
+            var lastEntry = trackEvents.length - 1;
+            if (lastEntry >= 0 && trackEvents[trackEvents.length - 1].type != "beat") {
+                this.addBeatMarker();
+            }
+            this.hub.grids[pIdx] = trackEvents;
+        };
+        return BarGrid;
+    }(Beats);
+    CxSheet.BarGrid = BarGrid;
+})(CxSheet || (CxSheet = {}));
+
+var CxSheet;
+
+(function(CxSheet) {
+    var Analyzer = function() {
+        function Analyzer(hub) {
+            this.hub = hub;
+            this.matrix = {};
+        }
+        Analyzer.prototype.getDataHub = function() {
+            return this.hub;
+        };
+        Analyzer.prototype.getTempo = function(pIdx, realTime) {
+            if (pIdx === void 0) {
+                pIdx = 0;
+            }
+            if (realTime === void 0) {
+                realTime = 0;
+            }
+            if (this.tempo == null) {
+                this.tempo = _.sortedUniq(_.sortBy(_.filter(_.flatten(this.hub.parsed[pIdx].tracks), {
+                    programType: ProgramType.chords
+                }), [ "sortKey" ]));
+            }
+            var event = null;
+            if (realTime == 0) {
+                event = this.tempo[0];
+            } else {
+                var prevEvent;
+                for (var t = 0; t < this.tempo.length; t++) {
+                    if (realTime < this.tempo[t].realTime) {
+                        prevEvent = this.tempo[t];
+                    } else {
+                        event = prevEvent;
+                    }
+                }
+            }
+            if (event == null) {
+                event = prevEvent;
+            }
+            return event.microsecondsPerBeat;
+        };
         Analyzer.prototype.learnOverlaps = function(data) {
             var vectors = [];
             var headEvent = data[0];
@@ -386,15 +477,24 @@ var CxSheet;
                 e += 1;
             }
             var overlapArr = _.sortedUniq(_.sortBy(vectors));
-            CxSheet.writeJsonArr(overlapArr, "C:\\work\\CxSheet\\resource\\overlaps.json");
         };
-        Analyzer.prototype.groupChordNotes = function(includeBass) {
+        Analyzer.prototype.sampleChords = function(pIdx, includeBass) {
+            if (pIdx === void 0) {
+                pIdx = 1;
+            }
             if (includeBass === void 0) {
-                includeBass = false;
+                includeBass = true;
             }
             var trackList = this.hub.getChordTracks(includeBass);
-            var data = this.hub.getTrackEvents(trackList);
-            this.learnOverlaps(data);
+            var data = this.hub.getTrackNotes(trackList, pIdx);
+            for (var e = 0; e < data.length; e++) {
+                if (data[e].type == "noteOn" && data[e].velocity > 0) {
+                    if (_.isUndefined(this.matrix[data[e].sigNorm])) {
+                        this.matrix[data[e].sigNorm] = [];
+                    }
+                    this.matrix[data[e].sigNorm].push(data[e].noteNumber);
+                }
+            }
         };
         return Analyzer;
     }();
@@ -408,34 +508,68 @@ var CxSheet;
         function Normalizer(hub) {
             this.hub = hub;
             this.subDiv = [];
-            this.subDivCount = [];
+            this.maxTicks = this.hub.parsed[0].header.ticksPerBeat - 1;
+            this.learnSubDivisions();
         }
-        Normalizer.prototype.getDataHub = function() {
-            return this.hub;
+        Normalizer.prototype.getTicksDiff = function(event) {
+            var numerator = this.hub.timeSignatures[event.sigIdx].numerator;
+            var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
+            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
+            var bar = CxSheet.Beats.getBar(event.signature);
+            var barN = CxSheet.Beats.getBar(event.sigNorm);
+            var beat = CxSheet.Beats.getBeat(event.signature);
+            var beatN = CxSheet.Beats.getBeat(event.sigNorm);
+            var ticks = CxSheet.Beats.getTicks(event.signature);
+            var ticksN = CxSheet.Beats.getTicks(event.sigNorm);
+            var diff = 0;
+            var barDiff = 0;
+            var beatDiff = 0;
+            var ticksDiff = 0;
+            barDiff = (barN - bar) * ticksPerBeat * numerator;
+            beatDiff = (beatN - beat) * ticksPerBeat;
+            ticksDiff = ticksN - ticks;
+            diff = barDiff + beatDiff + ticksDiff;
+            return diff;
         };
         Normalizer.prototype.getClosestIdx = function(ticks, _len) {
             if (_len === void 0) {
                 _len = -1;
             }
-            var len = _len == -1 || _len > this.subDiv.length ? this.subDiv.length : _len;
-            var closest = -1;
-            for (var e = 1; e < this.subDiv.length; e++) {
+            var len = _len == -1 || _len >= this.subDiv.length ? this.subDiv.length - 1 : _len;
+            var closest = 1e7;
+            var closestIdx = -1;
+            for (var e = 0; e <= len; e++) {
                 var dist = Math.abs(ticks - this.subDiv[e]);
-                if (dist < closest || closest < 0) {
-                    closest = e;
+                if (dist < closest) {
+                    closest = dist;
+                    closestIdx = e;
                 }
             }
-            return closest;
+            return closestIdx;
         };
-        Normalizer.prototype.getNormalizedVal = function(event) {
-            var subDiv;
-            try {
-                subDiv = this.subDivCount[event.sigIdx].length;
-            } catch (err) {
-                console.log("subDivCount.length:" + this.subDivCount.length + ", idx:" + event.sigIdx);
+        Normalizer.prototype.setNormalizedVal = function(event, _len) {
+            if (_len === void 0) {
+                _len = -1;
             }
-            var normIdx = this.getClosestIdx(CxSheet.Beats.getTicks(event.signature), subDiv);
-            return this.subDiv[normIdx];
+            var len = _len == -1 || _len >= this.subDiv.length ? this.subDiv.length - 1 : _len;
+            var closest = 1e7;
+            var closestIdx = this.getClosestIdx(CxSheet.Beats.getTicks(event.signature), len);
+            var ticks = this.subDiv[closestIdx];
+            var beat = CxSheet.Beats.getBeat(event.signature);
+            var bar = CxSheet.Beats.getBar(event.signature);
+            if (ticks == this.maxTicks) {
+                var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
+                ticks = 0;
+                beat += 1;
+                if (beat > this.hub.timeSignatures[event.sigIdx].denominator) {
+                    beat = 1;
+                    bar += 1;
+                }
+                event.sigNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
+            } else {
+                event.sigNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
+            }
+            return this.getTicksDiff(event);
         };
         Normalizer.prototype.learnSubDivisions = function(divisionOfBeat, pIdx) {
             if (divisionOfBeat === void 0) {
@@ -444,68 +578,69 @@ var CxSheet;
             if (pIdx === void 0) {
                 pIdx = 0;
             }
-            var data = this.hub.getTrackEvents(this.hub.getDrumTracks());
+            var subDivCount = this.hub.subDivCount;
+            var data = this.hub.getTrackNotes(this.hub.getDrumTracks());
             var ticksPerBeat = this.hub.parsed[pIdx].header.ticksPerBeat;
             for (var i = 0; i <= divisionOfBeat; i++) {
-                this.subDiv.push(i == 0 ? 0 : Math.floor(ticksPerBeat / i));
+                this.subDiv.push(i == 0 ? 0 : Math.floor(ticksPerBeat / i) - 1);
             }
             var timeSignatures = this.hub.timeSignatures;
             for (var t = 0; t < timeSignatures.length; t++) {
                 var nextSortKey = t < timeSignatures.length - 1 ? timeSignatures[t + 1].sortKey : 1e6;
-                var subDivCount = [];
+                var subDiv = [];
                 for (var i = 0; i <= divisionOfBeat; i++) {
-                    subDivCount.push(0);
+                    subDiv.push(0);
                 }
                 for (var e = 0; e < data.length; e++) {
-                    if (data[e].sortKey > nextSortKey) {
+                    while (data[e].sortKey > nextSortKey) {
                         t++;
+                        nextSortKey = t < timeSignatures.length - 1 ? timeSignatures[t + 1].sortKey : 1e6;
                     }
                     var ticks = Number(data[e].signature.split(".")[2]);
-                    var closest = this.getClosestIdx(ticks);
-                    subDivCount[closest] += 1;
+                    var closestIdx = this.getClosestIdx(ticks);
+                    subDiv[closestIdx] += 1;
                 }
-                this.subDivCount[t] = subDivCount;
+                subDivCount[t] = _.clone(subDiv);
             }
             for (t = 0; t < timeSignatures.length; t++) {
-                var total = _.sum(this.subDivCount[t]);
-                for (i = this.subDivCount[t].length - 1; i > 0; i--) {
-                    var sum = this.subDivCount[t][i];
+                var total = _.sum(subDivCount[t]);
+                for (i = subDivCount[t].length - 1; i > 0; i--) {
+                    var sum = subDivCount[t][i];
                     if (sum == 0 || sum < total / 10) {
-                        this.subDivCount[t].pop();
+                        subDivCount[t].pop();
                     } else {
                         break;
                     }
                 }
             }
         };
-        Normalizer.prototype.normalizeAllTracks = function(_song, _seed) {
-            if (_seed === void 0) {
-                _seed = null;
+        Normalizer.prototype.normalizeAllTracks = function(_song) {
+            if (_song === void 0) {
+                _song = this.hub.parsed[0];
             }
             var song = _.cloneDeep(_song);
-            for (var t = 0; t < song.tracks.length; t++) {
-                this.normalizeTrack(song.tracks[t]);
-            }
-        };
-        Normalizer.prototype.normalizeTrack = function(track) {
             if (this.subDiv.length == 0) {
                 this.learnSubDivisions();
             }
-            var prevDelta = 0;
-            for (var e = 0; e < track.length; e++) {
-                var ticksN = this.getNormalizedVal(track[e]);
-                var delta = ticksN - CxSheet.Beats.getTicks(track[e].signature);
-                track[e].deltaTime += prevDelta + delta;
-                track[e].realTime += prevDelta + delta;
-                prevDelta = delta;
-                track[e].signature = CxSheet.Beats.setTicks(track[e].signature, ticksN);
+            for (var t = 0; t < song.tracks.length; t++) {
+                song.tracks[t] = this.normalizeTrack(song.tracks[t]);
             }
+            this.hub.parsed.push(song);
+        };
+        Normalizer.prototype.normalizeTrack = function(_track) {
+            var track = _.sortBy(_track, [ "sortKey" ]);
+            for (var e = 0; e < track.length; e++) {
+                var change = this.setNormalizedVal(track[e]);
+                track[e].realNorm = track[e].realTime + change;
+                track[e].deltaNorm = e == 0 ? track[e].deltaTime + change : track[e].realNorm - track[e - 1].realNorm;
+            }
+            return track;
         };
         Normalizer.prototype.learnFirstActualBar = function(pIdx) {
             if (pIdx === void 0) {
                 pIdx = 0;
             }
-            var grid = this.hub.grids[pIdx];
+            var grid = this.hub.getAllEvents(pIdx);
             var tickPerBeat = this.hub.parsed[pIdx].header.ticksPerBeat;
             var sixBars = [];
             var noteCount = [];
@@ -533,19 +668,24 @@ var CxSheet;
     CxSheet.Normalizer = Normalizer;
 })(CxSheet || (CxSheet = {}));
 
+describe("Services Page", function() {
+    beforeEach(function() {});
+});
+
 describe("Testing CxSheet", function() {
     it("CxSheet.MidiReader can read a midi file", function() {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        expect(readerInst.ping()).toEqual("MidiReader is alive");
-        expect(readerInst.hub.midiInPath).toBeDefined();
-        expect(readerInst.hub.parsed[0]).toBeDefined();
-        readerInst.writeJsonFile("C:/work/CxSheet/resource/sultans-of-test.json");
-        readerInst.writeFile("C:/work/CxSheet/resource/sultans-of-midi_write.mid");
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        expect(midiIO.ping()).toEqual("MidiReader is alive");
+        expect(midiIO.hub.midiInPath).toBeDefined();
+        expect(midiIO.hub.parsed[0]).toBeDefined();
+        midiIO.writeJsonFile("C:/work/CxSheet/resource/sultans-of-test.json");
+        midiIO.writeFile("C:/work/CxSheet/resource/sultans-of-midi_write.mid");
     });
     it("CxSheet.BarGrid can produce a barGrid", function() {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var dataHub = readerInst.getDataHub();
-        var barGrid = new CxSheet.BarGrid(dataHub);
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
         for (var e = 1; e < barGrid.hub.grids[0].length; e++) {
             expect(barGrid.hub.grids[0][e].realTime >= barGrid.hub.grids[0][e - 1].realTime).toBeTruthy();
             if (barGrid.hub.grids[0][e].type == "noteOn") {
@@ -556,46 +696,112 @@ describe("Testing CxSheet", function() {
             }
         }
     });
-    it("CxSheet.Analyzer can build ChordTracks", function() {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var dataHub = readerInst.getDataHub();
-        var barGrid = new CxSheet.BarGrid(dataHub);
-        var analyzer = new CxSheet.Analyzer(dataHub);
-        expect(analyzer.hub.chordTracksCh.length).toBeGreaterThan(0);
-        expect(analyzer.hub.bassTracksCh.length).toBeGreaterThan(0);
-        expect(analyzer.hub.drumTracksCh.length).toBeGreaterThan(0);
-        var trackList = dataHub.getChordTracks(false);
-        expect(trackList.length).toBeGreaterThan(0);
-        var trackList2 = dataHub.getChordTracks(true);
-        expect(trackList2.length).toBeGreaterThan(trackList.length);
-        var data = dataHub.getTrackEvents(trackList);
-        expect(data.length).toBeGreaterThan(0);
-        for (var e = 1; e < data.length; e++) {
-            expect(data[e].type).toEqual("noteOn");
-        }
-        analyzer.groupChordNotes();
-    });
-    it("CxSheet.Normalizer can normalize midi tracks", function() {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var hub = readerInst.getDataHub();
+    it("CxSheet.Normalizer can learn learn SubDivisions", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
         var barGrid = new CxSheet.BarGrid(hub);
-        var analyzer = new CxSheet.Analyzer(hub);
         var normalizer = new CxSheet.Normalizer(hub);
+        for (var t = 0; t < hub.timeSignatures.length; t++) {
+            expect(hub.timeSignatures[t]).not.toBeUndefined();
+        }
         normalizer.learnSubDivisions();
-        expect(normalizer.subDiv.length).toBeGreaterThan(0);
-        expect(normalizer.subDivCount.length).toBeGreaterThan(0);
-        normalizer.normalizeAllTracks(hub.parsed[0]);
-        expect(normalizer.subDivCount.length).toBeGreaterThan(0);
-        for (var t = 0; t < hub.parsed[0].tracks.length; t++) {
-            var track = hub.parsed[0].tracks[t];
-            var prevEvent = track[0];
-            for (var e = 1; e < track.length; e++) {
-                var event = track[e];
-                expect(event.realTime >= prevEvent.realTime).toBeTruthy();
-                expect(event.sortKey).toBeGreaterThan(prevEvent.sortKey);
-                expect(event.deltaTime).toEqual(event.realTime - prevEvent.realTime);
-                prevEvent = event;
+        expect(normalizer.subDiv.length).toBeGreaterThan(4);
+        expect(hub.timeSignatures.length).toBeGreaterThan(0);
+        expect(hub.subDivCount.length).toBeGreaterThan(0);
+        for (var s = 0; s < hub.subDivCount.length; s++) {
+            for (var e = 0; e < hub.subDivCount[s].length; e++) {
+                expect(hub.subDivCount[s][e]).not.toBeUndefined();
             }
         }
+    });
+    it("CxSheet.DataHub can find Drum and Chords Tracks", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        expect(hub.subDivCount.length).toBeGreaterThan(0);
+        expect(hub.timeSignatures.length).toBeGreaterThan(0);
+        expect(hub.chordTracksCh.length).toBeGreaterThan(0);
+        expect(hub.bassTracksCh.length).toBeGreaterThan(0);
+        expect(hub.drumTracksCh.length).toBeGreaterThan(0);
+    });
+    it("CxSheet.DataHub can extract Chords with Bass Events", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        var trackList = hub.getChordTracks(true);
+        expect(trackList.length).toBeGreaterThan(0);
+        var data = hub.getTrackNotes(trackList);
+        expect(data.length).toBeGreaterThan(0);
+        for (var e = 0; e < data.length; e++) {
+            expect(data[e]).not.toBeUndefined();
+            expect(data[e].sigIdx).not.toBeUndefined();
+        }
+    });
+    it("CxSheet.DataHub can extract Chords NO Bass Events", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        var trackList = hub.getChordTracks(false);
+        var data = hub.getTrackNotes(trackList);
+        expect(data.length).toBeGreaterThan(0);
+        for (var e = 0; e < data.length; e++) {
+            expect(data[e]).not.toBeUndefined();
+        }
+    });
+    it("CxSheet.DataHub can extract Drum Events", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        var trackList = hub.getDrumTracks();
+        var data = hub.getTrackNotes(trackList);
+        expect(data.length).toBeGreaterThan(0);
+        for (var e = 0; e < data.length; e++) {
+            expect(data[e]).not.toBeUndefined();
+        }
+    });
+    it("CxSheet.Normalizer can normalize midi tracks", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        expect(hub.subDivCount.length).toBeGreaterThan(0);
+        normalizer.normalizeAllTracks(hub.parsed[0]);
+        expect(hub.parsed[1]).not.toBeUndefined();
+        expect(hub.parsed[1].tracks).not.toBeUndefined();
+        expect(hub.parsed[1].tracks.length).toEqual(hub.parsed[0].tracks.length);
+        for (var t = 0; t < hub.parsed[0].tracks.length; t++) {
+            expect(hub.parsed[1].tracks[t].length).toEqual(hub.parsed[0].tracks[t].length);
+        }
+        for (t = 0; t < hub.parsed[1].tracks.length; t++) {
+            var track = hub.parsed[1].tracks[t];
+            for (var e = 1; e < track.length; e++) {
+                var event = track[e];
+                expect(event.realTime >= track[e - 1].realTime).toBeTruthy();
+                expect(event.sortKey).toBeGreaterThan(track[e - 1].sortKey);
+                expect(event.deltaTime).toEqual(event.realTime - track[e - 1].realTime);
+            }
+        }
+    });
+    it("CxSheet.Analyzer can group Chord Notes", function() {
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var hub = midiIO.getDataHub();
+        var barGrid = new CxSheet.BarGrid(hub);
+        var normalizer = new CxSheet.Normalizer(hub);
+        normalizer.normalizeAllTracks(hub.parsed[0]);
+        barGrid.buildGrid(hub.parsed.length - 1);
+        var trackList = hub.getChordTracks(true);
+        expect(trackList.length).toBeGreaterThan(0);
+        var data = hub.getTrackNotes(trackList, 1);
+        expect(data.length).toBeGreaterThan(0);
+        for (var e = 0; e < data.length; e++) {
+            expect(data[e].type).toEqual("noteOn");
+        }
+        var analyzer = new CxSheet.Analyzer(hub);
+        analyzer.sampleChords();
+        expect(Object.keys(analyzer.matrix).length).toBeGreaterThan(0);
     });
 });

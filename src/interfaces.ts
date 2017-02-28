@@ -1,11 +1,6 @@
 //
 // App Interface 
 //
-interface config {
-     
-
-}
-
 interface AnalyzeChord {
  
 
@@ -20,11 +15,14 @@ interface Analyze {
 //
 interface BaseEntry {
       deltaTime:      number,
+      deltaNorm?:     number,
       type:           string,
       realTime?:      number,
+      realNorm?:      number,
       track?:         number,
       sortKey?:       number,
       signature?:     string,
+      sigNorm?:       string,
       sigIdx?:        number
 } 
 
@@ -74,6 +72,8 @@ interface ProgramChange extends BaseEntry {
         programType: ProgramType 
 }
 
+type ProgramChanges = Array<ProgramChange>
+
 interface PitchBend extends BaseEntry {
         value: number
 }
@@ -83,7 +83,8 @@ interface ChannelNote extends BaseEntry {
         type:       string,
         noteNumber: number,
         velocity:   number,
-        duration?:  number
+        duration?:  number,
+        overlaps?:  number
 }
 
 type MidiEvent  = BaseEntry|MetaEntry|MetaText|TimeSignature|Tempo|KeySignature|PortPrefix|ChannelPrefix|Controller|ProgramChange|PitchBend|ChannelNote
@@ -107,7 +108,7 @@ interface Grid {
         grid:   Track            
 }
 
-type chordMatrix = Array< Array< Array<number> > >
+interface Matrix { [id: string] : number[] } 
 
 
 

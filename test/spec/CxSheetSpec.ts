@@ -1,35 +1,58 @@
 /// <reference path="../../src/references.ts" />
 
 // import CxSheet = require('../../index.js');
+// var midiIO
+// var hub
 
-  describe('Testing CxSheet', function () {
+
+describe('Services Page', function() {
+
+    beforeEach(function() {
+        
+    })
+
+    /*
+    beforeEach(function() {
+        browser().navigateTo('/services')
+    })
+
+    if('Some test for services page', function() {})
+
+    afterEach(function() {
+        logout()
+    })
+    */
+})
+
+describe('Testing CxSheet', function () {
 
 /*
      it('CxSheet.MidiReader can normalize a file Path', function () {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
         var file
-        expect(readerInst.ping()).toEqual("MidiReader is alive")
-        expect(readerInst.hub.midiInPath).toBeDefined();
-        expect(readerInst.hub.parsed).toBeDefined();
-        // readerInst.writeJsonFile("../../../../resource/4-Voices.json");
-        readerInst.writeJsonFile("../../resource/sultans-of-test.json");
-        readerInst.writeFile("../../resource/sultans-of-midi_write.mid");
+        expect(midiIO.ping()).toEqual("MidiReader is alive")
+        expect(midiIO.hub.midiInPath).toBeDefined();
+        expect(midiIO.hub.parsed).toBeDefined();
+        // midiIO.writeJsonFile("../../../../resource/4-Voices.json");
+        midiIO.writeJsonFile("../../resource/sultans-of-test.json");
+        midiIO.writeFile("../../resource/sultans-of-midi_write.mid");
       });
 */
       it('CxSheet.MidiReader can read a midi file', function () {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        expect(readerInst.ping()).toEqual("MidiReader is alive")
-        expect(readerInst.hub.midiInPath).toBeDefined();
-        expect(readerInst.hub.parsed[0]).toBeDefined();
-        // readerInst.writeJsonFile("../../../../resource/4-Voices.json");
-        readerInst.writeJsonFile("C:/work/CxSheet/resource/sultans-of-test.json");
-        readerInst.writeFile("C:/work/CxSheet/resource/sultans-of-midi_write.mid");
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+        var hub = midiIO.getDataHub()
+        expect(midiIO.ping()).toEqual("MidiReader is alive")
+        expect(midiIO.hub.midiInPath).toBeDefined();
+        expect(midiIO.hub.parsed[0]).toBeDefined();
+        // midiIO.writeJsonFile("../../../../resource/4-Voices.json");
+        midiIO.writeJsonFile("C:/work/CxSheet/resource/sultans-of-test.json");
+        midiIO.writeFile("C:/work/CxSheet/resource/sultans-of-midi_write.mid");
       });
 
       it('CxSheet.BarGrid can produce a barGrid', function () {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var dataHub = readerInst.getDataHub()
-        var barGrid    = new CxSheet.BarGrid(dataHub)
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+        var hub = midiIO.getDataHub()
+        var barGrid    = new CxSheet.BarGrid(hub)
         for ( var e = 1 ; e < barGrid.hub.grids[0].length ; e++ ) {
             expect(barGrid.hub.grids[0][e].realTime >= barGrid.hub.grids[0][e-1].realTime).toBeTruthy() 
             if ( barGrid.hub.grids[0][e].type == 'noteOn' ) {
@@ -41,54 +64,130 @@
         }
       });
 
-      it('CxSheet.Analyzer can build ChordTracks', function () {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var dataHub = readerInst.getDataHub()
-        var barGrid    = new CxSheet.BarGrid(dataHub)
-        var analyzer   = new CxSheet.Analyzer(dataHub)
-        expect(analyzer.hub.chordTracksCh.length).toBeGreaterThan(0)
-        expect(analyzer.hub.bassTracksCh.length).toBeGreaterThan(0)
-        expect(analyzer.hub.drumTracksCh.length).toBeGreaterThan(0)
-        //
-        var trackList = dataHub.getChordTracks(false)
-        expect(trackList.length).toBeGreaterThan(0)
-        var trackList2 = dataHub.getChordTracks(true)
-        expect(trackList2.length).toBeGreaterThan(trackList.length)
-        //
-        var data: Array<ChannelNote> =  dataHub.getTrackEvents(trackList)  
-        expect(data.length).toBeGreaterThan(0)
-        for ( var e = 1 ; e < data.length ; e++ ) {
-            expect(data[e].type).toEqual('noteOn')
-        }
-        // analyzer.groupChordNotes()
-      }); 
+       it('CxSheet.Normalizer can learn learn SubDivisions', function () {
+            var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+            var hub        = midiIO.getDataHub()
+            var barGrid    = new CxSheet.BarGrid(hub)
+            var normalizer = new CxSheet.Normalizer(hub)
+            for (var t = 0 ; t < hub.timeSignatures.length; t++ ) {
+                expect(hub.timeSignatures[t]).not.toBeUndefined()
+            }
+            normalizer.learnSubDivisions() 
+            expect(normalizer.subDiv.length).toBeGreaterThan(4)
+            expect(hub.timeSignatures.length).toBeGreaterThan(0)
+            expect(hub.subDivCount.length).toBeGreaterThan(0)
+            for (var s = 0 ; s < hub.subDivCount.length; s++ ) {
+                for (var e = 0 ; e < hub.subDivCount[s].length; e++ ) {
+                     expect(hub.subDivCount[s][e]).not.toBeUndefined()
+                     // expect(_.sum(hub.subDivCount[s][e])).toBeGreaterThan(0)
+                }
+            }
+      });
+
+      it('CxSheet.DataHub can find Drum and Chords Tracks', function () {
+            var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+            var hub        = midiIO.getDataHub()
+            var barGrid    = new CxSheet.BarGrid(hub)
+            var normalizer = new CxSheet.Normalizer(hub)
+            //normalizer.learnSubDivisions() 
+            expect(hub.subDivCount.length).toBeGreaterThan(0)
+            expect(hub.timeSignatures.length).toBeGreaterThan(0)
+            // for (var t = 0 ; t < hub.timeSignatures.length; t++ ) {
+            expect(hub.chordTracksCh.length).toBeGreaterThan(0)
+            expect(hub.bassTracksCh.length).toBeGreaterThan(0)
+            expect(hub.drumTracksCh.length).toBeGreaterThan(0)
+      });
+    
+      it('CxSheet.DataHub can extract Chords with Bass Events', function () {
+            var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+            var hub        = midiIO.getDataHub()
+            var barGrid    = new CxSheet.BarGrid(hub)
+            var normalizer = new CxSheet.Normalizer(hub)
+            var trackList  = hub.getChordTracks(true)
+            expect(trackList.length).toBeGreaterThan(0)
+
+            var data       = hub.getTrackNotes(trackList) 
+            expect(data.length).toBeGreaterThan(0)
+
+            for( var e = 0; e < data.length ; e++ ) {
+                expect(data[e]).not.toBeUndefined()
+                expect(data[e].sigIdx).not.toBeUndefined()
+            }
+
+      });
+
+      it('CxSheet.DataHub can extract Chords NO Bass Events', function () {
+            var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+            var hub        = midiIO.getDataHub()
+            var barGrid    = new CxSheet.BarGrid(hub)
+            var normalizer = new CxSheet.Normalizer(hub)
+            var trackList  = hub.getChordTracks(false)
+            var data       = hub.getTrackNotes(trackList) 
+            expect(data.length).toBeGreaterThan(0)
+            for( var e = 0; e < data.length ; e++ ) {
+                expect(data[e]).not.toBeUndefined()
+            }
+      });
+   
+      it('CxSheet.DataHub can extract Drum Events', function () {
+            var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
+            var hub        = midiIO.getDataHub()
+            var barGrid    = new CxSheet.BarGrid(hub)
+            var normalizer = new CxSheet.Normalizer(hub)
+            var trackList  = hub.getDrumTracks()
+            var data       = hub.getTrackNotes(trackList) 
+            expect(data.length).toBeGreaterThan(0)
+            for( var e = 0; e < data.length ; e++ ) {
+                expect(data[e]).not.toBeUndefined()
+            }
+      });
 
       it('CxSheet.Normalizer can normalize midi tracks', function () {
-        var readerInst = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
-        var hub = readerInst.getDataHub()
-        var barGrid    = new CxSheet.BarGrid(hub)
-        var analyzer   = new CxSheet.Analyzer(hub)
-        var normalizer = new CxSheet.Normalizer(hub)
-        normalizer.learnSubDivisions()
-        expect(normalizer.subDiv.length).toBeGreaterThan(0)
-        expect(normalizer.subDivCount.length).toBeGreaterThan(0)
-        // normalizer.learnFirstActualBar()
+          var midiIO     = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+          var hub        = midiIO.getDataHub()
+          var barGrid    = new CxSheet.BarGrid(hub)
+          var normalizer = new CxSheet.Normalizer(hub)
+          // normalizer.learnSubDivisions()
+          expect(hub.subDivCount.length).toBeGreaterThan(0)
+        
+          normalizer.normalizeAllTracks(hub.parsed[0])
+          expect(hub.parsed[1]).not.toBeUndefined()
+          expect(hub.parsed[1].tracks).not.toBeUndefined()
+          expect(hub.parsed[1].tracks.length).toEqual(hub.parsed[0].tracks.length)
+          for (var t = 0; t <  hub.parsed[0].tracks.length ; t++ ) {
+            expect(hub.parsed[1].tracks[t].length).toEqual(hub.parsed[0].tracks[t].length)
+          }
 
-        normalizer.normalizeAllTracks(hub.parsed[0])
-       // { text: "normalizeGrid", subDiv: this.subDiv, grid: normGrid }
-        expect(normalizer.subDivCount.length).toBeGreaterThan(0)
-        // var hub: DataHub = normalizer.getDataHub()
-        for (var t = 0; t <  hub.parsed[0].tracks.length ; t++ ) {
-            var track:Track = hub.parsed[0].tracks[t]
-            var prevEvent   = track[0]
-            for ( var e = 1 ; e < track.length ; e++ ) {
-                var event     = track[e]
-                expect(event.realTime >= prevEvent.realTime).toBeTruthy() 
-                expect(event.sortKey).toBeGreaterThan(prevEvent.sortKey)
-                expect(event.deltaTime ).toEqual(event.realTime - prevEvent.realTime)
-                prevEvent = event
-            }
-        }
+          for (t = 0; t <  hub.parsed[1].tracks.length ; t++ ) {
+              var track:Track = hub.parsed[1].tracks[t]
+              for ( var e = 1 ; e < track.length ; e++ ) {
+                  var event     = track[e]
+                  expect(event.realTime >= track[e-1].realTime).toBeTruthy() 
+                  expect(event.sortKey).toBeGreaterThan(track[e-1].sortKey)
+                  expect(event.deltaTime ).toEqual(event.realTime - track[e-1].realTime)
+              }
+          }
       });
-     
+
+      it('CxSheet.Analyzer can group Chord Notes', function () {
+          var midiIO    = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+          var hub       = midiIO.getDataHub()
+          var barGrid   = new CxSheet.BarGrid(hub)
+          var normalizer = new CxSheet.Normalizer(hub)
+          normalizer.normalizeAllTracks(hub.parsed[0])
+          barGrid.buildGrid(hub.parsed.length -1)
+
+          var trackList = hub.getChordTracks(true)
+          expect(trackList.length).toBeGreaterThan(0)
+          var data =  hub.getTrackNotes(trackList, 1) 
+          expect(data.length).toBeGreaterThan(0)
+
+          for ( var e = 0 ; e < data.length ; e++ ) {
+                expect(data[e].type).toEqual('noteOn')
+          }   
+          var analyzer = new CxSheet.Analyzer(hub)
+          analyzer.sampleChords()
+          expect(Object.keys(analyzer.matrix).length).toBeGreaterThan(0)
+      }); 
+
   });

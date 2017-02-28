@@ -15,9 +15,10 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Program",
-            "program": "${workspaceRoot}\\index_spec.js",
+            "program": "${workspaceRoot}\\index.js",
             "cwd": "${workspaceRoot}",
-            "outFiles": ["${workspaceRoot}/build/src/*.js", "${workspaceRoot}/build/test/spec/*.js" ]
+            "outFiles": [ "${workspaceRoot}/build/src/*.js" ]
+            // , "${workspaceRoot}/build/test/spec/*.js"
         }
     ]
 }

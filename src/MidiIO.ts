@@ -35,6 +35,15 @@ namespace CxSheet {
         // Write to a new MIDI file.  it should match the original
         nodeFs.writeFileSync(jsonOutPath, outputBuffer)
     }
+
+    export function writeJson( map: any, _jsonOutPath: string = "") {
+        var jsonOutPath = _jsonOutPath.match(/^$/) ? getOutFilePath(_jsonOutPath): normalizePath(_jsonOutPath)
+        // Note that the output is simply an array of byte values.  writeFileSync wants a buffer, so this will convert accordingly.
+        // Using native Javascript arrays makes the code portable to the browser or non-node environments
+        var outputBuffer = new Buffer( stringify(map, { space: '  ' }) )  
+        // Write to a new MIDI file.  it should match the original
+        nodeFs.writeFileSync(jsonOutPath, outputBuffer)
+    }
   
     export class MidiIO {
 

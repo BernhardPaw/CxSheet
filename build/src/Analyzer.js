@@ -5,35 +5,15 @@ var CxSheet;
     var Analyzer = (function () {
         function Analyzer(hub) {
             this.hub = hub;
-            this.matrix = [];
-            this.groupPrograms();
+            this.matrix = {};
+            // this.sampleChords()
         }
         Analyzer.prototype.getDataHub = function () { return this.hub; };
-        Analyzer.prototype.groupPrograms = function (pIdx) {
-            if (pIdx === void 0) { pIdx = 0; }
-            var programChanges = _.sortBy(_.filter(this.hub.grids[0], { "type": "programChange" }), ['realTime', 'track', 'sortKey']);
-            for (var e = 0; e < programChanges.length; e++) {
-                var p = programChanges[e].programNumber;
-                if ((p > 0 && p < 33) || (p > 40 && p < 113)) {
-                    programChanges[e].programType = ProgramType.chords;
-                }
-                else if ((p > 32 && p < 41)) {
-                    programChanges[e].programType = ProgramType.bass;
-                }
-                else {
-                    programChanges[e].programType = ProgramType.drums;
-                }
-            }
-            this.hub.programChanges = programChanges;
-            this.hub.chordTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.chords }), ['realTime', 'track', 'sortKey']));
-            this.hub.bassTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.bass }), ['realTime', 'track', 'sortKey']));
-            this.hub.drumTracksCh = _.sortedUniq(_.sortBy(_.filter(programChanges, { "programType": ProgramType.drums }), ['realTime', 'track', 'sortKey']));
-        };
         Analyzer.prototype.getTempo = function (pIdx, realTime) {
             if (pIdx === void 0) { pIdx = 0; }
             if (realTime === void 0) { realTime = 0; }
             if (this.tempo == null) {
-                this.tempo = _.sortedUniq(_.sortBy(_.filter(this.hub.grids[pIdx], { "programType": ProgramType.chords }), ['sortKey']));
+                this.tempo = _.sortedUniq(_.sortBy(_.filter(_.flatten(this.hub.parsed[pIdx].tracks), { "programType": ProgramType.chords }), ['sortKey']));
             }
             var event = null;
             if (realTime == 0) {
@@ -55,16 +35,6 @@ var CxSheet;
             }
             return event.microsecondsPerBeat;
         };
-        /*
-        learnAccidentals ( pIdx: number = 0 ) {
-            var msPerBeat   = this.getTempo(pIdx)
-            var tickPerBeat = this.hub.parsed[pIdx].header.ticksPerBeat
-            //
-            // TODO: Finish this
-            //
-            
-        }
-        */
         Analyzer.prototype.learnOverlaps = function (data) {
             // Create the data 2D-array (vectors) describing the note overlaps 
             var vectors = [];
@@ -85,7 +55,7 @@ var CxSheet;
                 e += 1;
             }
             var overlapArr = _.sortedUniq(_.sortBy(vectors));
-            CxSheet.writeJsonArr(overlapArr, "C:\\work\\CxSheet\\resource\\overlaps.json");
+            // writeJsonArr(overlapArr, "C:\\work\\CxSheet\\resource\\overlaps.json")
             /*
             kmeans.clusterize(vectors, {k: 2}, (err,res) => {
                 if (err) {
@@ -99,71 +69,88 @@ var CxSheet;
             })
             */
         };
+        // TODO: 
         // Single tone durations only have incidental overlaps with other notes to the left and right
         // Single note may be stringed together to form a chord, provided that the steps (looking at the group of stringed notes) are intervallic in nature
         // ChordTones are intonated close to each other within a common duration, but may also have small incidental overlaps with other chords/notes  
         // Use k-means (above) to cluster the short and long overlaps
-        Analyzer.prototype.addTicks = function (event, addTicks) {
-            // var newTicks = this.getTicks
-            var numerator = this.hub.timeSignatures[event.sigIdx].numerator;
-            var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
-            var bar = CxSheet.Beats.getBar(event.signature);
-            var beat = CxSheet.Beats.getBeat(event.signature);
-            var ticks = CxSheet.Beats.getTicks(event.signature);
-            var newTicks = ticks + addTicks;
-            event.deltaTime += addTicks;
-            event.realTime += addTicks;
-            while (newTicks > ticksPerBeat) {
-                beat += 1;
-                if (beat > denominator) {
-                    bar += 1;
-                    beat = 1;
+        /*
+          setOverlaps ( data: Array<ChannelNote> ) {
+            // var track = this.hub.parsed[pIdx].tracks[t]
+            // var realTime = e == 0 ? track[e].deltaTime : track[e].deltaTime + track[e - 1].realTime
+            // t: number, e: number, pIdx: number = 0
+            var minOverlap    = Math.floor( (this.hub.parsed[0].header.ticksPerBeat / CxSheet.Config.sampleBeatDivision ) / 2  )
+            var overlapCount  = 0
+            var lookBack      = CxSheet.Config.overlapLookBack
+            if ( t == 7 ) {
+                var debug = 1
+            }
+            for( var b = e - 1, bCount = 0 ; b > 0 && bCount < lookBack; b--) {
+                if ( track[b].type == "noteOn" && (<ChannelNote> track[b]).velocity > 0 ) {
+                    var prevRealTimeEnd = track[b].realTime + (<ChannelNote>track[b]).duration
+                    var overlap = prevRealTimeEnd - track[e].realTime
+                    if ( overlap > minOverlap ) {
+                        (<ChannelNote> track[b]).overlaps += 1
+                        overlapCount++
+                    }
+                    bCount++
                 }
-                newTicks -= ticksPerBeat;
             }
-            var barStr = ("0000" + bar).slice(-4);
-            var beatStr = ("00" + beat).slice(-2);
-            var ticksStr = ("00" + ticks).slice(-3);
-            event.signature = barStr + "." + beatStr + "." + ticksStr;
-            return event;
-        };
-        Analyzer.prototype.addToMatrix = function (event) {
-            var bar = CxSheet.Beats.getBar(event.signature);
-            var beat = CxSheet.Beats.getBeat(event.signature);
-            var ticks = CxSheet.Beats.getTicks(event.signature);
-            if (_.isUndefined(this.matrix[bar])) {
-                this.matrix[bar] = [];
+            (<ChannelNote> track[e]).overlaps = overlapCount
+        }
+        */
+        /*
+        getSampleRate() {
+            //  TODO: Analyze this.hub.subDivCount to find a a sample rate
+
+        }
+        */
+        /*
+        addTicks( event: ChannelNote, addTicks: number ): ChannelNote {
+            // var newTicks = this.getTicks
+            var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
+            var denominator  = this.hub.timeSignatures[event.sigIdx].denominator
+            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
+            var bar          = Beats.getBar(event.signature)
+            var beat         = Beats.getBeat(event.signature)
+            var ticks        = Beats.getTicks(event.signature)
+            var newTicks     = ticks + addTicks
+
+            event.deltaTime += addTicks
+            event.realTime  += addTicks
+            while ( newTicks  > ticksPerBeat ) {
+                beat += 1
+                if ( beat > denominator ) {
+                    bar += 1
+                    beat = 1
+                }
+                newTicks -= ticksPerBeat
             }
-            if (_.isUndefined(this.matrix[bar][beat])) {
-                this.matrix[bar][beat] = [];
-            }
-            this.matrix[bar][beat].push(event.noteNumber);
-        };
+            var barStr:string   = ("0000" + bar).slice(-4)
+            var beatStr:string  = ("00"   + beat).slice(-2)
+            var ticksStr:string = ("00"   + newTicks ).slice(-3)
+            event.signature = barStr + "." + beatStr + "." + ticksStr
+            return event
+        }
+        */
         //
         // sample chord tones
         // 
-        Analyzer.prototype.sampleChords = function (sampleBeatDivision, pIdx, includeBass) {
-            if (sampleBeatDivision === void 0) { sampleBeatDivision = 2; }
-            if (pIdx === void 0) { pIdx = 0; }
-            if (includeBass === void 0) { includeBass = false; }
-            var ticksPerBeat = this.hub.parsed[pIdx].header.ticksPerBeat;
-            var ticksPerSample = ticksPerBeat / sampleBeatDivision;
+        Analyzer.prototype.sampleChords = function (pIdx, includeBass) {
+            if (pIdx === void 0) { pIdx = 1; }
+            if (includeBass === void 0) { includeBass = true; }
+            /// var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
             var trackList = this.hub.getChordTracks(includeBass);
-            var data = this.hub.getTrackEvents(trackList, pIdx);
-            //
-            for (var e = 0; e <= data.length; e++) {
-                var event = data[e];
-                if (event.type == "noteOn") {
-                    this.addToMatrix(_.clone(event));
-                    event.duration -= ticksPerSample;
-                    while (event.duration > ticksPerSample) {
-                        event = this.addTicks(event, ticksPerSample);
-                        this.addToMatrix(_.clone(event));
-                        event.duration -= ticksPerSample;
+            var data = this.hub.getTrackNotes(trackList, pIdx);
+            for (var e = 0; e < data.length; e++) {
+                if (data[e].type == "noteOn" && data[e].velocity > 0) {
+                    if (_.isUndefined(this.matrix[data[e].sigNorm])) {
+                        this.matrix[data[e].sigNorm] = [];
                     }
+                    this.matrix[data[e].sigNorm].push(data[e].noteNumber);
                 }
             }
+            // writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\matrix.json") 
         };
         return Analyzer;
     }());

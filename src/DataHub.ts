@@ -2,6 +2,29 @@
 
 namespace CxSheet { 
 
+    export class Config {
+        //
+        // Configuration Parameters
+        //   
+        static sampleBeatDivision:  number = 2
+        static overlapLookBack:     number = 10    
+        //
+        // Singleton logic
+        //
+        private static _instance: Config = new Config()
+
+        constructor() {
+            if(Config._instance){
+                throw new Error("Error: Instantiation failed: Use Config.getInstance() instead of new.");
+            }
+            Config._instance = this;
+        }
+
+        public static getInstance(): Config {
+            return Config._instance
+        }
+    }
+
     export class DataHub {
         //
         // Midi Data
@@ -13,8 +36,7 @@ namespace CxSheet {
         //
         // BarGrid Data
         // 
-        // grid:           Array< ChannelNote|MetaEntry|MetaText|TimeSignature|SetTempo|KeySignature|PortPrefix|ChannelPrefix|Controller|ProgramChange|PitchBend> = []   
-        grids:          TrackArr   = []
+        grids:          TrackArr        = []
         timeSignatures: TimeSignature[] = []
         bars:           Array<MetaText> = [] 
         //
@@ -26,8 +48,12 @@ namespace CxSheet {
         chordTracksCh:  Array<ProgramChange> 
         bassTracksCh:   Array<ProgramChange>
         drumTracksCh:   Array<ProgramChange>
+        //
+        // Result of beat subdivisions by time timeSignatures learned from drumtracks
+        //
+        subDivCount:    number[][] = []
 
-        constructor() { }
+        constructor() {}
   
         getChordTracks ( includeBass:boolean = true ): number[] {
             var data = this.chordTracksCh
@@ -50,42 +76,35 @@ namespace CxSheet {
             return _.uniq(tracks).sort()
         }
 
-        getTrackEvents( tracks: Array<number>, pIdx: number = 0 ): Array<ChannelNote> {
-            var events = _.sortBy( 
-                            _.filter(this.grids[pIdx], 
-                                function(e) {
-                                    return (tracks.indexOf(e.track) > -1 && e.type == 'noteOn' ) 
-                                }) 
-                            , ['sortKey', 'realTime', 'track'] 
-                        ) 
+        getTrackNotes( trackList: Array<number>, pIdx: number = 0 ): Array<ChannelNote> {
+            var trackEvents: Array<MidiEvent> = []
+            for( var t = 0; t < trackList.length; t++ ) {
+               // console.log("this.parsed[" + pIdx + "].tracks[trackList[" + t + "]].length:" +  this.parsed[pIdx].tracks[trackList[t]].length)
+               trackEvents = _.concat( trackEvents, this.parsed[pIdx].tracks[trackList[t]] )
+            }
+            // console.log("Final trackEvents.length:" +  trackEvents.length)
+            var events: Array<ChannelNote> = _.sortBy( _.filter(trackEvents, 
+                                                        function(e) {
+                                                            return ( e.type == 'noteOn' && (<ChannelNote> e).velocity > 0 ) 
+                                                        }) 
+                                                    , ['sortKey', 'realTime', 'track'] 
+                                                ) 
             return events
         }
 
-
-    }
-
-
-
-
-    /*
-    export class Singleton {
-        //
-        // Shared Data
-        //   
-        public parsed: Song 
-
-        private static _instance:Singleton = new Singleton()
-
-        constructor() {
-            if(Singleton._instance){
-                throw new Error("Error: Instantiation failed: Use SingletonClass.getInstance() instead of new.");
-            }
-            Singleton._instance = this;
+        getEventsByType( _type: string, pIdx: number = 0 ): Array<MidiEvent>  {
+            var events: Array<MidiEvent> = _.sortBy( _.filter( _.flatten( this.parsed[pIdx].tracks ),
+                                                function(e) {
+                                                    return ( e.type == _type ) 
+                                                }) 
+                                                , ['sortKey', 'realTime', 'track'] 
+                                            )
+            return events
         }
 
-        public static getInstance(): Singleton {
-            return Singleton._instance
+        getAllEvents( pIdx: number = 0 ): Array<MidiEvent>  {
+            var events: Array<MidiEvent> = _.sortBy( _.flatten( this.parsed[pIdx].tracks ), ['sortKey', 'realTime', 'track'] )
+            return events
         }
     }
-    */
 }

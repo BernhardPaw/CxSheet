@@ -7,6 +7,11 @@ namespace CxSheet {
         }
 
         getDataHub(): DataHub { return this.hub }
+
+        renderHtml(): string {
+
+            return ""
+        }
     }
 
 }

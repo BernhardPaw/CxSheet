@@ -1,16 +1,41 @@
 /// <reference path="../src/references.ts" />
 var CxSheet;
 (function (CxSheet) {
+    var Config = (function () {
+        function Config() {
+            if (Config._instance) {
+                throw new Error("Error: Instantiation failed: Use Config.getInstance() instead of new.");
+            }
+            Config._instance = this;
+        }
+        Config.getInstance = function () {
+            return Config._instance;
+        };
+        return Config;
+    }());
+    //
+    // Configuration Parameters
+    //   
+    Config.sampleBeatDivision = 2;
+    Config.overlapLookBack = 10;
+    //
+    // Singleton logic
+    //
+    Config._instance = new Config();
+    CxSheet.Config = Config;
     var DataHub = (function () {
         function DataHub() {
             this.parsed = [];
             //
             // BarGrid Data
             // 
-            // grid:           Array< ChannelNote|MetaEntry|MetaText|TimeSignature|SetTempo|KeySignature|PortPrefix|ChannelPrefix|Controller|ProgramChange|PitchBend> = []   
             this.grids = [];
             this.timeSignatures = [];
             this.bars = [];
+            //
+            // Result of beat subdivisions by time timeSignatures learned from drumtracks
+            //
+            this.subDivCount = [];
         }
         DataHub.prototype.getChordTracks = function (includeBass) {
             if (includeBass === void 0) { includeBass = true; }
@@ -32,36 +57,33 @@ var CxSheet;
             }
             return _.uniq(tracks).sort();
         };
-        DataHub.prototype.getTrackEvents = function (tracks, pIdx) {
+        DataHub.prototype.getTrackNotes = function (trackList, pIdx) {
             if (pIdx === void 0) { pIdx = 0; }
-            var events = _.sortBy(_.filter(this.grids[pIdx], function (e) {
-                return (tracks.indexOf(e.track) > -1 && e.type == 'noteOn');
+            var trackEvents = [];
+            for (var t = 0; t < trackList.length; t++) {
+                // console.log("this.parsed[" + pIdx + "].tracks[trackList[" + t + "]].length:" +  this.parsed[pIdx].tracks[trackList[t]].length)
+                trackEvents = _.concat(trackEvents, this.parsed[pIdx].tracks[trackList[t]]);
+            }
+            // console.log("Final trackEvents.length:" +  trackEvents.length)
+            var events = _.sortBy(_.filter(trackEvents, function (e) {
+                return (e.type == 'noteOn' && e.velocity > 0);
             }), ['sortKey', 'realTime', 'track']);
+            return events;
+        };
+        DataHub.prototype.getEventsByType = function (_type, pIdx) {
+            if (pIdx === void 0) { pIdx = 0; }
+            var events = _.sortBy(_.filter(_.flatten(this.parsed[pIdx].tracks), function (e) {
+                return (e.type == _type);
+            }), ['sortKey', 'realTime', 'track']);
+            return events;
+        };
+        DataHub.prototype.getAllEvents = function (pIdx) {
+            if (pIdx === void 0) { pIdx = 0; }
+            var events = _.sortBy(_.flatten(this.parsed[pIdx].tracks), ['sortKey', 'realTime', 'track']);
             return events;
         };
         return DataHub;
     }());
     CxSheet.DataHub = DataHub;
-    /*
-    export class Singleton {
-        //
-        // Shared Data
-        //
-        public parsed: Song
-
-        private static _instance:Singleton = new Singleton()
-
-        constructor() {
-            if(Singleton._instance){
-                throw new Error("Error: Instantiation failed: Use SingletonClass.getInstance() instead of new.");
-            }
-            Singleton._instance = this;
-        }
-
-        public static getInstance(): Singleton {
-            return Singleton._instance
-        }
-    }
-    */
 })(CxSheet || (CxSheet = {}));
 //# sourceMappingURL=DataHub.js.map
