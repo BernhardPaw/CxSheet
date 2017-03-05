@@ -47,7 +47,7 @@ namespace CxSheet {
             }
             return event.microsecondsPerBeat
         }
-
+        /* Not used p.t.:
         addTicks( event: MidiEvent, addTicks: number ) {
             // var newTicks = this.getTicks
             var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
@@ -100,25 +100,24 @@ namespace CxSheet {
             var ticksStr:string = ("00"   + newTicks ).slice(-3)
             event.signature     = barStr + "." + beatStr + "." + ticksStr
         }
-
+        */
         cleanUpArr( _tones: number[] ): number[] {
-            // Cleanup dublicates
+            // Cleanup dublicates and octave dublicates 
             var tones: number[] = [] 
-            // cleanup octave dublicates 
             // console.log("INPUT -->" + stringify(_tones))
             for( var i = 0; i < _tones.length; i++ ) {
                 var tone = _tones[i] % 12
                 if ( i == 0 ) {
                     tones.push(tone)
                 }
-                else while ( tone <= tones[tones.length - 1] ) {
+                else while ( tone < tones[tones.length - 1] && _.indexOf( tones, tone ) < 0 ) {
                         tone += 12
                 }
                 if ( _.indexOf( tones, tone ) < 0 ) {
                      tones.push(tone)
                 }
             }
-            console.log(stringify(tones))
+            // console.log(stringify(tones))
             return tones
         }
 
@@ -147,7 +146,7 @@ namespace CxSheet {
                 prevTones = _.clone(notes)
                 this.matrix[key].notes  = _.clone(notes)
             }
-            writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\chordMatrix.json") 
+            // writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\chordMatrix.json") 
         }
 
         getTicksPerSample( sigIdx: number) {
@@ -156,35 +155,6 @@ namespace CxSheet {
             var samplePerBeat = Math.round(ticksPerBeat / sampleTicks) 
             return samplePerBeat
         }
-
-        /*
-        sampleOverlaps( _data: Array<MidiEvent> ) {
-             var data: Array<MidiEvent> = _.clone(_data)
-             for ( var e = 0; e < data.length ; e++ ) {
-                if ( data[e].type == "noteOn" && (<ChannelNote>data[e]).velocity > 0 ) {
-                    var goOn = true
-                    var noteEnd = data[e].realNorm + (<ChannelNote> data[e]).duration
-                    var overlap = noteEnd -  data[e].realNorm
-                    while ( goOn ) {
-                        noteEnd = data[e].realNorm + (<ChannelNote> data[e]).duration
-                        if ( overlap > 0 && overlap > ( data[e].realNorm/10 ) ) { 
-                            if ( _.indexOf(this.matrix[data[e].signature], (<ChannelNote> data[e]).noteNumber)  < 0 ) {
-                                this.matrix[data[e].signature].push( (<ChannelNote> data[e]).noteNumber )
-                                var sampleTicks = this.getTicksPerSample( data[e].sigIdx ) 
-                                this.adjustTicksNorm( data[e], sampleTicks )
-                                noteEnd = data[e].realNorm + (<ChannelNote> data[e]).duration
-                                overlap = noteEnd -  data[e].realNorm
-                            }
-                        }
-                        else  {
-                            _.unset( data[e] ) 
-                            goOn = false
-                        }
-                    }
-                }
-            }
-        }
-        */
 
         //
         // Sample chord tones
@@ -229,7 +199,7 @@ namespace CxSheet {
                      }
                  }
              }
-            writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\matrix.json") 
+            // writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\matrix.json") 
             this.mergeSamples()
         }
     }

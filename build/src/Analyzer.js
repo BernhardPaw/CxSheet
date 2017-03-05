@@ -89,14 +89,14 @@ var CxSheet;
             // Cleanup dublicates
             var tones = [];
             // cleanup octave dublicates 
-            // console.log("INPUT -->" + stringify(_tones))
+            console.log("INPUT -->" + stringify(_tones));
             for (var i = 0; i < _tones.length; i++) {
                 var tone = _tones[i] % 12;
                 if (i == 0) {
                     tones.push(tone);
                 }
                 else
-                    while (tone <= tones[tones.length - 1]) {
+                    while (tone < tones[tones.length - 1] && _.indexOf(tones, tone) < 0) {
                         tone += 12;
                     }
                 if (_.indexOf(tones, tone) < 0) {
