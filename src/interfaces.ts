@@ -22,7 +22,7 @@ interface BaseEntry {
       track?:         number,
       sortKey?:       number,
       signature?:     string,
-      sigNorm?:       string,
+      signaNorm?:     string,
       sigIdx?:        number
 } 
 
@@ -108,7 +108,12 @@ interface Grid {
         grid:   Track            
 }
 
-interface Matrix { [id: string] : number[] } 
+interface MatrixEntry {
+        realTime: number, 
+        index:    number, 
+        duration: number, 
+        notes:    number[],
+        repeat?:  boolean
+} 
 
-
-
+interface Matrix { [id: string] : MatrixEntry }

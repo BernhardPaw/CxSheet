@@ -8,49 +8,20 @@ namespace CxSheet {
         maxTicks:   number
 
         constructor( public hub : CxSheet.DataHub ) { 
-            this.maxTicks = this.hub.parsed[0].header.ticksPerBeat -1
+            this.maxTicks = this.hub.parsed[0].header.ticksPerBeat
             this.learnSubDivisions()
         }
-        
-        /*  Not used p.t.
-        addTicks( event: ChannelNote, addTicks: number ): BaseEntry {
-            // var newTicks = this.getTicks
-            var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
-            var denominator  = this.hub.timeSignatures[event.sigIdx].denominator
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
-            var bar          = Beats.getBar(event.signature)
-            var beat         = Beats.getBeat(event.signature)
-            var ticks        = Beats.getTicks(event.signature)
-            var newTicks     = ticks + addTicks
-
-            event.deltaTime += addTicks
-            event.realTime  += addTicks
-            while ( newTicks  > ticksPerBeat ) {
-                beat += 1
-                if ( beat > denominator ) {
-                    bar += 1
-                    beat = 1
-                }
-                newTicks -= ticksPerBeat
-            }
-            var barStr:string   = ("0000" + bar).slice(-4)
-            var beatStr:string  = ("00"   + beat).slice(-2)
-            var ticksStr:string = ("00"   + newTicks ).slice(-3)
-            event.signature = barStr + "." + beatStr + "." + ticksStr
-            return event
-        }
-        */
         
         getTicksDiff( event: BaseEntry): number {
             var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
             var denominator  = this.hub.timeSignatures[event.sigIdx].denominator
             var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
             var bar          = Beats.getBar(event.signature)
-            var barN         = Beats.getBar(event.sigNorm)
+            var barN         = Beats.getBar(event.signaNorm)
             var beat         = Beats.getBeat(event.signature)
-            var beatN        = Beats.getBeat(event.sigNorm)
+            var beatN        = Beats.getBeat(event.signaNorm)
             var ticks        = Beats.getTicks(event.signature)
-            var ticksN       = Beats.getTicks(event.sigNorm)
+            var ticksN       = Beats.getTicks(event.signaNorm)
             var diff:      number = 0
             var barDiff:   number = 0 
             var beatDiff:  number = 0
@@ -83,8 +54,8 @@ namespace CxSheet {
             var closest:    number = 10000000
             var closestIdx: number = this.getClosestIdx( Beats.getTicks(event.signature), len )
             var ticks: number      = this.subDiv[closestIdx]
-            var beat = Beats.getBeat(event.signature)
-            var bar  = Beats.getBar(event.signature)
+            var beat:number        = Beats.getBeat(event.signature)
+            var bar:number         = Beats.getBar(event.signature)
             // Check if we are in the next beat and next bar
             if ( ticks == this.maxTicks ) {
                 var denominator = this.hub.timeSignatures[event.sigIdx].denominator
@@ -94,10 +65,10 @@ namespace CxSheet {
                     beat  = 1
                     bar  += 1
                 }
-                event.sigNorm = Beats.setSignature(bar, beat, ticks)
+                event.signaNorm = Beats.setSignature(bar, beat, ticks)
             }
             else {
-                event.sigNorm = Beats.setSignature(bar, beat, ticks)
+                event.signaNorm = Beats.setSignature(bar, beat, ticks)
             }
             return this.getTicksDiff(event)
         }
@@ -109,7 +80,7 @@ namespace CxSheet {
             var data   = this.hub.getTrackNotes( this.hub.getDrumTracks() )    
             var ticksPerBeat: number = this.hub.parsed[pIdx].header.ticksPerBeat
             for ( var i = 0; i <= divisionOfBeat ; i++ ) {
-                this.subDiv.push( i == 0 ? 0 : Math.floor(ticksPerBeat/i) - 1 ) 
+                this.subDiv.push( i == 0 ? 0 : Math.round(ticksPerBeat/i) ) 
             }
             //
             // Count the number of subdivisions for each time signature
@@ -182,19 +153,19 @@ namespace CxSheet {
             var sixBars: Array<ChannelNote> = []
             var noteCount: number[] = [] // _.fill( Array( this.subDiv.length * 6 ), 0)
             for ( var e = 0; e < grid.length; e++ ) {
-                if ( grid[e].signature.match(/^0007\..*/) ) { break }
+                if ( grid[e].signaNorm.match(/^0007\..*/) ) { break }
                 if ( grid[e].type ==  "noteOn" ) {
                     var event    = <ChannelNote> grid[e]
-                    var barBeats = (Beats.getBar(event.signature) - 1) * this.hub.timeSignatures[event.sigIdx].numerator
-                    var beat     = Beats.getBeat(event.signature)
-                    var ticks    = Beats.getTicks(event.signature)
+                    var barBeats = (Beats.getBar(event.signaNorm) - 1) * this.hub.timeSignatures[event.sigIdx].numerator
+                    var beat     = Beats.getBeat(event.signaNorm)
+                    var ticks    = Beats.getTicks(event.signaNorm)
                     var idx      = this.getClosestIdx(ticks)
                     noteCount[idx] += 1
                     var nTicks  = this.subDiv[idx] 
                     if ( nTicks == tickPerBeat ) {
                         // TODO: Complete or remove this function
                     }
-                    event.signature = Beats.setTicks(event.signature, nTicks)
+                    event.signaNorm = Beats.setTicks(event.signaNorm, nTicks)
                     sixBars.push(event) 
                 }
             }

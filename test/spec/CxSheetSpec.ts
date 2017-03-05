@@ -190,4 +190,15 @@ describe('Testing CxSheet', function () {
           expect(Object.keys(analyzer.matrix).length).toBeGreaterThan(0)
       }); 
 
+      it('CxSheet.Analyzer can merge Chord Notes', function () {
+          var midiIO    = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid");
+          var hub       = midiIO.getDataHub()
+          var barGrid   = new CxSheet.BarGrid(hub)
+          var normalizer = new CxSheet.Normalizer(hub)
+          normalizer.normalizeAllTracks(hub.parsed[0])
+          var analyzer = new CxSheet.Analyzer(hub)
+          analyzer.sampleChords()
+          expect(Object.keys(analyzer.matrix).length).toBeGreaterThan(0)
+      }); 
+
   });

@@ -54,6 +54,11 @@ namespace CxSheet {
         subDivCount:    number[][] = []
 
         constructor() {}
+
+        getSampleRate (idx: number ) {
+            var    sampleRate = _.inRange(idx, 0, this.subDivCount.length) ? this.subDivCount[idx].length : this.subDivCount[0].length  
+            return sampleRate
+        }
   
         getChordTracks ( includeBass:boolean = true ): number[] {
             var data = this.chordTracksCh

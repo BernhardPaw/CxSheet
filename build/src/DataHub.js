@@ -37,6 +37,10 @@ var CxSheet;
             //
             this.subDivCount = [];
         }
+        DataHub.prototype.getSampleRate = function (idx) {
+            var sampleRate = _.inRange(idx, 0, this.subDivCount.length) ? this.subDivCount[idx].length : this.subDivCount[0].length;
+            return sampleRate;
+        };
         DataHub.prototype.getChordTracks = function (includeBass) {
             if (includeBass === void 0) { includeBass = true; }
             var data = this.chordTracksCh;

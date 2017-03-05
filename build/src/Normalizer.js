@@ -6,7 +6,7 @@ var CxSheet;
         function Normalizer(hub) {
             this.hub = hub;
             this.subDiv = [];
-            this.maxTicks = this.hub.parsed[0].header.ticksPerBeat - 1;
+            this.maxTicks = this.hub.parsed[0].header.ticksPerBeat;
             this.learnSubDivisions();
         }
         Normalizer.prototype.getTicksDiff = function (event) {
@@ -14,11 +14,11 @@ var CxSheet;
             var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
             var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
             var bar = CxSheet.Beats.getBar(event.signature);
-            var barN = CxSheet.Beats.getBar(event.sigNorm);
+            var barN = CxSheet.Beats.getBar(event.signaNorm);
             var beat = CxSheet.Beats.getBeat(event.signature);
-            var beatN = CxSheet.Beats.getBeat(event.sigNorm);
+            var beatN = CxSheet.Beats.getBeat(event.signaNorm);
             var ticks = CxSheet.Beats.getTicks(event.signature);
-            var ticksN = CxSheet.Beats.getTicks(event.sigNorm);
+            var ticksN = CxSheet.Beats.getTicks(event.signaNorm);
             var diff = 0;
             var barDiff = 0;
             var beatDiff = 0;
@@ -60,10 +60,10 @@ var CxSheet;
                     beat = 1;
                     bar += 1;
                 }
-                event.sigNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
+                event.signaNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
             }
             else {
-                event.sigNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
+                event.signaNorm = CxSheet.Beats.setSignature(bar, beat, ticks);
             }
             return this.getTicksDiff(event);
         };
@@ -77,7 +77,7 @@ var CxSheet;
             var data = this.hub.getTrackNotes(this.hub.getDrumTracks());
             var ticksPerBeat = this.hub.parsed[pIdx].header.ticksPerBeat;
             for (var i = 0; i <= divisionOfBeat; i++) {
-                this.subDiv.push(i == 0 ? 0 : Math.floor(ticksPerBeat / i) - 1);
+                this.subDiv.push(i == 0 ? 0 : Math.round(ticksPerBeat / i));
             }
             //
             // Count the number of subdivisions for each time signature
@@ -151,20 +151,20 @@ var CxSheet;
             var sixBars = [];
             var noteCount = []; // _.fill( Array( this.subDiv.length * 6 ), 0)
             for (var e = 0; e < grid.length; e++) {
-                if (grid[e].signature.match(/^0007\..*/)) {
+                if (grid[e].signaNorm.match(/^0007\..*/)) {
                     break;
                 }
                 if (grid[e].type == "noteOn") {
                     var event = grid[e];
-                    var barBeats = (CxSheet.Beats.getBar(event.signature) - 1) * this.hub.timeSignatures[event.sigIdx].numerator;
-                    var beat = CxSheet.Beats.getBeat(event.signature);
-                    var ticks = CxSheet.Beats.getTicks(event.signature);
+                    var barBeats = (CxSheet.Beats.getBar(event.signaNorm) - 1) * this.hub.timeSignatures[event.sigIdx].numerator;
+                    var beat = CxSheet.Beats.getBeat(event.signaNorm);
+                    var ticks = CxSheet.Beats.getTicks(event.signaNorm);
                     var idx = this.getClosestIdx(ticks);
                     noteCount[idx] += 1;
                     var nTicks = this.subDiv[idx];
                     if (nTicks == tickPerBeat) {
                     }
-                    event.signature = CxSheet.Beats.setTicks(event.signature, nTicks);
+                    event.signaNorm = CxSheet.Beats.setTicks(event.signaNorm, nTicks);
                     sixBars.push(event);
                 }
             }
