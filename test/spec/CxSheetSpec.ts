@@ -1,29 +1,5 @@
 /// <reference path="../../src/references.ts" />
 
-// import CxSheet = require('../../index.js');
-// var midiIO
-// var hub
-
-
-describe('Services Page', function() {
-
-    beforeEach(function() {
-        
-    })
-
-    /*
-    beforeEach(function() {
-        browser().navigateTo('/services')
-    })
-
-    if('Some test for services page', function() {})
-
-    afterEach(function() {
-        logout()
-    })
-    */
-})
-
 describe('Testing CxSheet', function () {
 
 /*
@@ -39,8 +15,9 @@ describe('Testing CxSheet', function () {
       });
 */
       it('CxSheet.MidiReader can read a midi file', function () {
-        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid")
-        var hub = midiIO.getDataHub()
+        var hub = new CxSheet.DataHub()
+        var midiIO = new CxSheet.MidiIO("C:/work/CxSheet/resource/sultans-of-swing.mid", "", hub)
+        //  midiIO.getDataHub()
         expect(midiIO.ping()).toEqual("MidiReader is alive")
         expect(midiIO.hub.midiInPath).toBeDefined();
         expect(midiIO.hub.parsed[0]).toBeDefined();

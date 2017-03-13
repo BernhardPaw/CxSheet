@@ -32,6 +32,7 @@ var CxSheet;
             this.timeSignatures = [];
             this.bars = [];
             this.subDivCount = [];
+            this.matrix = {};
         }
         DataHub.prototype.getSampleRate = function(idx) {
             var sampleRate = _.inRange(idx, 0, this.subDivCount.length) ? this.subDivCount[idx].length : this.subDivCount[0].length;
@@ -427,8 +428,8 @@ var CxSheet;
     var Analyzer = function() {
         function Analyzer(hub) {
             this.hub = hub;
-            this.matrix = {};
             this.matrixIndex = [];
+            this.matrix = this.hub.matrix;
         }
         Analyzer.prototype.getDataHub = function() {
             return this.hub;
@@ -463,56 +464,8 @@ var CxSheet;
             }
             return event.microsecondsPerBeat;
         };
-        Analyzer.prototype.addTicks = function(event, addTicks) {
-            var numerator = this.hub.timeSignatures[event.sigIdx].numerator;
-            var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
-            var bar = CxSheet.Beats.getBar(event.signature);
-            var beat = CxSheet.Beats.getBeat(event.signature);
-            var ticks = CxSheet.Beats.getTicks(event.signature);
-            var newTicks = ticks + addTicks;
-            event.deltaTime += addTicks;
-            event.realTime += addTicks;
-            while (newTicks > ticksPerBeat) {
-                beat += 1;
-                if (beat > denominator) {
-                    bar += 1;
-                    beat = 1;
-                }
-                newTicks -= ticksPerBeat;
-            }
-            var barStr = ("0000" + bar).slice(-4);
-            var beatStr = ("00" + beat).slice(-2);
-            var ticksStr = ("00" + newTicks).slice(-3);
-            event.signature = barStr + "." + beatStr + "." + ticksStr;
-        };
-        Analyzer.prototype.adjustTicksNorm = function(event, addTicks) {
-            var numerator = this.hub.timeSignatures[event.sigIdx].numerator;
-            var denominator = this.hub.timeSignatures[event.sigIdx].denominator;
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
-            var bar = CxSheet.Beats.getBar(event.signature);
-            var beat = CxSheet.Beats.getBeat(event.signature);
-            var ticks = CxSheet.Beats.getTicks(event.signature);
-            var newTicks = ticks + addTicks;
-            event.deltaNorm += addTicks;
-            event.realNorm += addTicks;
-            event.duration -= addTicks;
-            while (newTicks > ticksPerBeat) {
-                beat += 1;
-                if (beat > denominator) {
-                    bar += 1;
-                    beat = 1;
-                }
-                newTicks -= ticksPerBeat;
-            }
-            var barStr = ("0000" + bar).slice(-4);
-            var beatStr = ("00" + beat).slice(-2);
-            var ticksStr = ("00" + newTicks).slice(-3);
-            event.signature = barStr + "." + beatStr + "." + ticksStr;
-        };
         Analyzer.prototype.cleanUpArr = function(_tones) {
             var tones = [];
-            console.log("INPUT -->" + stringify(_tones));
             for (var i = 0; i < _tones.length; i++) {
                 var tone = _tones[i] % 12;
                 if (i == 0) {
@@ -524,7 +477,6 @@ var CxSheet;
                     tones.push(tone);
                 }
             }
-            console.log(stringify(tones));
             return tones;
         };
         Analyzer.prototype.mergeSamples = function() {
@@ -539,7 +491,6 @@ var CxSheet;
                 prevTones = _.clone(notes);
                 this.matrix[key].notes = _.clone(notes);
             }
-            CxSheet.writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\chordMatrix.json");
         };
         Analyzer.prototype.getTicksPerSample = function(sigIdx) {
             var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat;
@@ -590,7 +541,6 @@ var CxSheet;
                     }
                 }
             }
-            CxSheet.writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\matrix.json");
             this.mergeSamples();
         };
         return Analyzer;
@@ -765,6 +715,42 @@ var CxSheet;
     CxSheet.Normalizer = Normalizer;
 })(CxSheet || (CxSheet = {}));
 
+var CxChord = require("../../CxChord/index.js");
+
+var CxSheet;
+
+(function(CxSheet) {
+    var Sheet = function() {
+        function Sheet(hub) {
+            this.hub = hub;
+            this.chordList = [];
+        }
+        Sheet.prototype.getDataHub = function() {
+            return this.hub;
+        };
+        Sheet.prototype.renderHtml = function(barsPerLine) {
+            return "";
+        };
+        Sheet.prototype.getChords = function() {
+            var prevBar = 0;
+            var prevChord = "";
+            for (var key in this.hub.matrix) {
+                var chord = this.hub.matrix[key];
+                var bar = CxSheet.Beats.getBar(key);
+                if (!chord.repeat && !(bar == prevBar)) {
+                    var cm = new CxChord.ChordMatcher();
+                    cm.match(chord.notes);
+                    var p0 = cm.bayes.getBestPosterior();
+                    var chordName = CxChord.getExtName(p0.hypo.key);
+                    console.log(key + ":" + chordName);
+                }
+            }
+        };
+        return Sheet;
+    }();
+    CxSheet.Sheet = Sheet;
+})(CxSheet || (CxSheet = {}));
+
 var _ = require("lodash");
 
 var CxSheet;
@@ -782,6 +768,10 @@ var CxSheet;
             var barGrid = new CxSheet.BarGrid(hub);
             var normalizer = new CxSheet.Normalizer(hub);
             normalizer.normalizeAllTracks(hub.parsed[0]);
+            var analyzer = new CxSheet.Analyzer(hub);
+            analyzer.sampleChords();
+            var sheet = new CxSheet.Sheet(hub);
+            sheet.getChords();
         };
         return App;
     }();

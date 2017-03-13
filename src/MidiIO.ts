@@ -2,13 +2,12 @@
 /// <reference path="../src/references.ts" />
 
 
-var cxMidi    = require('midi-file')
-var nodeFs    = require('fs')
-var path      = require("path")
+const cxMidi    = require('midi-file')
+const fs    = require('fs')
+const path      = require("path")
 var stringify = require('json-stable-stringify')
 
 namespace CxSheet { 
-
     //
     // Utilities
     //
@@ -33,7 +32,7 @@ namespace CxSheet {
         // Using native Javascript arrays makes the code portable to the browser or non-node environments
         var outputBuffer = new Buffer( stringify(arr, { space: '  ' }) )  
         // Write to a new MIDI file.  it should match the original
-        nodeFs.writeFileSync(jsonOutPath, outputBuffer)
+        fs.writeFileSync(jsonOutPath, outputBuffer)
     }
 
     export function writeJson( map: any, _jsonOutPath: string = "") {
@@ -42,14 +41,22 @@ namespace CxSheet {
         // Using native Javascript arrays makes the code portable to the browser or non-node environments
         var outputBuffer = new Buffer( stringify(map, { space: '  ' }) )  
         // Write to a new MIDI file.  it should match the original
-        nodeFs.writeFileSync(jsonOutPath, outputBuffer)
+        fs.writeFileSync(jsonOutPath, outputBuffer)
     }
   
     export class MidiIO {
 
-        constructor( _midiInPath: string, _midiOutName: string = "", public hub: DataHub = new DataHub() ) {
-            hub.midiInPath  = normalizePath(_midiInPath);
-            hub.midiOutPath = _midiOutName.match(/^$/) ? getOutFilePath(hub.midiInPath) : normalizePath(_midiOutName )    
+        hub: DataHub
+
+        constructor( _midiInPath: string, _midiOutName: string = "", _hub: DataHub = undefined) {
+            if ( _.isUndefined( _hub ) ) {
+                this.hub = new DataHub()
+            }
+            else {
+                this.hub = _hub
+            }
+            this.hub.midiInPath  = normalizePath(_midiInPath);
+            this.hub.midiOutPath = _midiOutName.match(/^$/) ? getOutFilePath(this.hub.midiInPath) : normalizePath(_midiOutName )    
             this.readFile()
         }
 
@@ -57,7 +64,7 @@ namespace CxSheet {
 
         readFile( parsedIdx: number = 0 ) {      
             // Read MIDI file into a buffer
-            var input = nodeFs.readFileSync(this.hub.midiInPath)
+            var input = fs.readFileSync(this.hub.midiInPath)
             // Parse it into an intermediate representation
             // This will take any array-like object.  It just needs to support .length, .slice, and the [] indexed element getter.
             // Buffers do that, so do native JS arrays, typed arrays, etc.
@@ -72,7 +79,7 @@ namespace CxSheet {
             // Using native Javascript arrays makes the code portable to the browser or non-node environments
             var outputBuffer = new Buffer(output)
             // Write to a new MIDI file.  it should match the original
-            nodeFs.writeFileSync(midiOutPath, outputBuffer)
+            fs.writeFileSync(midiOutPath, outputBuffer)
         }
 
         writeJsonFile(_jsonOutPath: string = "", parsedIdx: number = 0 ) {
@@ -81,12 +88,11 @@ namespace CxSheet {
             // Using native Javascript arrays makes the code portable to the browser or non-node environments
             var outputBuffer = new Buffer( stringify(this.hub.parsed[parsedIdx], { space: '  ' }) ) 
             // Write to a new MIDI file.  it should match the original
-            nodeFs.writeFileSync(jsonOutPath, outputBuffer)
+            fs.writeFileSync(jsonOutPath, outputBuffer)
         }
     
         ping() {
             return "MidiReader is alive"
         }
-
     }
 }

@@ -1,15 +1,17 @@
 /// <reference path="../src/references.ts" />
 // const kmeans = require('node-kmeans');
+// const cxchord = require('cxchord')
 namespace CxSheet { 
 
     export class Analyzer {
         noteEvents:     Array<ChannelNote>
         tempo:          Array<Tempo>
-        matrix:         Matrix = {}
+        matrix:         Matrix
         matrixIndex:    string[] = []
 
 
         constructor( public hub : CxSheet.DataHub ) {
+            this.matrix = this.hub.matrix
             // this.sampleChords()
         }
 
@@ -47,60 +49,7 @@ namespace CxSheet {
             }
             return event.microsecondsPerBeat
         }
-        /* Not used p.t.:
-        addTicks( event: MidiEvent, addTicks: number ) {
-            // var newTicks = this.getTicks
-            var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
-            var denominator  = this.hub.timeSignatures[event.sigIdx].denominator
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
-            var bar          = Beats.getBar(event.signature)
-            var beat         = Beats.getBeat(event.signature)
-            var ticks        = Beats.getTicks(event.signature)
-            var newTicks     = ticks + addTicks
 
-            event.deltaTime += addTicks
-            event.realTime  += addTicks
-            while ( newTicks  > ticksPerBeat ) {
-                beat += 1
-                if ( beat > denominator ) {
-                    bar += 1
-                    beat = 1
-                }
-                newTicks -= ticksPerBeat
-            }
-            var barStr:string   = ("0000" + bar).slice(-4)
-            var beatStr:string  = ("00"   + beat).slice(-2)
-            var ticksStr:string = ("00"   + newTicks ).slice(-3)
-            event.signature = barStr + "." + beatStr + "." + ticksStr
-        }
-
-        adjustTicksNorm( event: MidiEvent, addTicks: number ) {
-            // var newTicks = this.getTicks
-            var numerator    = this.hub.timeSignatures[event.sigIdx].numerator
-            var denominator  = this.hub.timeSignatures[event.sigIdx].denominator
-            var ticksPerBeat = this.hub.parsed[0].header.ticksPerBeat
-            var bar          = Beats.getBar(event.signature)
-            var beat         = Beats.getBeat(event.signature)
-            var ticks        = Beats.getTicks(event.signature)
-            var newTicks     = ticks + addTicks
-
-            event.deltaNorm += addTicks
-            event.realNorm  += addTicks;
-            (<ChannelNote> event).duration  -= addTicks
-            while ( newTicks  > ticksPerBeat ) {
-                beat += 1
-                if ( beat > denominator ) {
-                    bar += 1
-                    beat = 1
-                }
-                newTicks -= ticksPerBeat
-            }
-            var barStr:string   = ("0000" + bar).slice(-4)
-            var beatStr:string  = ("00"   + beat).slice(-2)
-            var ticksStr:string = ("00"   + newTicks ).slice(-3)
-            event.signature     = barStr + "." + beatStr + "." + ticksStr
-        }
-        */
         cleanUpArr( _tones: number[] ): number[] {
             // Cleanup dublicates and octave dublicates 
             var tones: number[] = [] 
@@ -126,10 +75,8 @@ namespace CxSheet {
         //      - sort each sample
         //      - starting from the bottom, remove doubles
         //      - compress to max two octaves while preserving tone order
-        //      - recursively include next sample:
-        //          - if it consists doubles or octave doublings, especially if the root is sustained
-        //          - if single note on strong beat then add next tones
-        //      - incorporate position in the bar of the chord (main beats vs off-beats)
+        //      - mark next chord as repeat if equal
+        //      TODO: later incorporate position in the bar of the chord (beats vs off-beats)
         //
         mergeSamples() {
             var prevTones: number[] = []
@@ -201,6 +148,13 @@ namespace CxSheet {
              }
             // writeJson(this.matrix, "C:\\work\\CxSheet\\resource\\matrix.json") 
             this.mergeSamples()
+        }
+
+        getChords() {
+          var cm =   new CxChord.ChordMatcher()
+          cm.favorJazz( true )
+          // cm.match(midiChord)
+          var p0 = cm.bayes.getBestPosterior(1) 
         }
     }
 }

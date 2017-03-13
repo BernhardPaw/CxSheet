@@ -5,5 +5,7 @@
 /// <reference path="DataHub.ts" />
 /// <reference path="MidiIO.ts" />
 /// <reference path="BarGrid.ts" />
+/// <reference path="Normalizer.ts" />
 /// <reference path="Analyzer.ts" />
+/// <reference path="Sheet.ts" />
 /// <reference path="App.ts" />

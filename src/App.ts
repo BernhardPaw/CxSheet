@@ -23,14 +23,13 @@ namespace CxSheet {
             var hub        = midiIO.getDataHub()
             var barGrid    = new CxSheet.BarGrid(hub)
             var normalizer = new CxSheet.Normalizer(hub)
-            // var analyzer   = new CxSheet.Analyzer(hub)
-            // var trackList  = hub.getChordTracks(true)
-            // var data       = hub.getTrackNotes(trackList)
-            normalizer.normalizeAllTracks(hub.parsed[0])
-            // barGrid.buildGrid(hub.parsed.length -1)
-            // analyzer.sampleChords()
+            normalizer.normalizeAllTracks(hub.parsed[0])  
+            var analyzer = new CxSheet.Analyzer(hub)
+            analyzer.sampleChords()
+            var sheet      = new CxSheet.Sheet(hub)
+            sheet.getChords()
         }
     }
 }
 
-var myApp = new CxSheet.App("C:/work/CxSheet/resource/sultans-of-swing.mid") 
+// var myApp = new CxSheet.App("C:/work/CxSheet/resource/sultans-of-swing.mid") 

@@ -1,18 +1,16 @@
 {
 	"compilerOptions": {
 		"target": "es5",
-		"module": "commonjs",
-		"sourceMap": true,
-		"outDir": "build"
+		"module": "system",
+		"sourceMap": true
 	} ,
 	"files": [
 		"src/Interfaces.ts",
 		"src/DataHub.ts",
 		"src/MidiIO.ts",
 		"src/BarGrid.ts",
-		"src/Analyzer.ts",
 		"src/Normalizer.ts",
-		"src/App.ts",
-        "test/spec/CxSheetSpec.ts"
+		"src/Analyzer.ts",
+		"src/App.ts"
     ]
 }

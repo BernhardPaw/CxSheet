@@ -52,6 +52,7 @@ namespace CxSheet {
         // Result of beat subdivisions by time timeSignatures learned from drumtracks
         //
         subDivCount:    number[][] = []
+        matrix:         Matrix = {}
 
         constructor() {}
 
